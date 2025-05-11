@@ -270,3 +270,24 @@ function moveEnemy(enemy, direction, delta) {
         }
     }
 }
+
+function removeAllEnemies() {
+    if (scene && enemies && enemies.length > 0) {
+        console.log("Removing all enemies. Count:", enemies.length);
+        enemies.forEach(enemy => {
+            if (enemy.parent) { // Ensure it's still in a scene graph
+                scene.remove(enemy);
+            }
+            // Optional: Dispose geometry/material if they are unique per enemy and not shared
+            // if (enemy.geometry) enemy.geometry.dispose();
+            // if (enemy.material) enemy.material.dispose();
+            // if (enemy.healthBar && enemy.healthBar.geometry) enemy.healthBar.geometry.dispose();
+            // if (enemy.healthBar && enemy.healthBar.material) enemy.healthBar.material.dispose();
+            // if (enemy.nameSprite && enemy.nameSprite.material && enemy.nameSprite.material.map) enemy.nameSprite.material.map.dispose();
+            // if (enemy.nameSprite && enemy.nameSprite.material) enemy.nameSprite.material.dispose();
+        });
+        enemies.length = 0; // Clear the array
+    } else {
+        // console.log("removeAllEnemies: No enemies to remove or scene/enemies array not available.");
+    }
+}

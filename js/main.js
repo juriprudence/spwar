@@ -12,7 +12,9 @@ let clock = new THREE.Clock();
 // Mobile control variables (initialized/updated in ui.js)
 let joystickActive = false;
 let joystickDirection = new THREE.Vector2();
+let turnJoystickDirection = new THREE.Vector2(); // For the turning joystick
 let joystickKnob, joystick, joystickRect, shootButton; // DOM elements
+// turnJoystickElement, turnJoystickKnobElement, turnJoystickRect are handled in ui.js
 
 // Power-up related global variables
 let powerUps = [];
@@ -26,6 +28,7 @@ let currentPlayerSpeed; // Will be initialized from PLAYER_SPEED
 // currentWeaponLevel is already in config.js
 let currentLevel = 1; // Initial game level
 let enemyProjectiles = []; // Array for enemy projectiles
+let isPlayerDead = false; // Flag to track player's death state
 
 // Initialize and start the game
 // Ensure DOM is loaded before trying to get elements or add listeners that depend on DOM elements
@@ -38,6 +41,7 @@ function init() {
     playerHealth = PLAYER_HEALTH_INITIAL; // From config.js
     currentPlayerSpeed = PLAYER_SPEED; // Initialize current speed from config
     powerUpSpawnTimer = 0; // Initialize power-up spawn timer
+    isPlayerDead = false; // Reset player death state on init
 
     // Define and assign effect functions to POWERUP_TYPES
     // This needs to be done after POWERUP_TYPES is loaded from config.js
@@ -116,8 +120,35 @@ function init() {
     scene.add(directionalLight);
 
     // Create floor
-    const floorGeometry = new THREE.PlaneGeometry(MAZE_SIZE * 2, MAZE_SIZE * 2); // From config.js
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: FLOOR_COLOR }); // From config.js
+    // Increased size to ensure it covers the entire maze area and beyond.
+    const floorDimension = MAZE_SIZE * 4;
+    const floorGeometry = new THREE.PlaneGeometry(floorDimension, floorDimension); // From config.js
+    
+    const textureLoader = new THREE.TextureLoader();
+    const floorTexture = textureLoader.load('texture/floor.jpeg',
+        function (texture) {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            // The floor is MAZE_SIZE * 2 units wide/long.
+            // If MAZE_SIZE is 15, floor is 30x30.
+            // Let's assume the texture should repeat every 2 world units.
+            // The new floorDimension is MAZE_SIZE * 4.
+            const repeatValue = floorDimension / 2;
+            texture.repeat.set(repeatValue, repeatValue);
+            console.log(`Floor texture loaded. Dimension: ${floorDimension}, Repeat: ${repeatValue}`);
+        },
+        undefined,
+        function (err) {
+            console.error('An error happened while loading the floor texture:', err);
+        }
+    );
+
+    const floorMaterial = new THREE.MeshStandardMaterial({
+        map: floorTexture,
+        color: 0xffffff // Use white to show texture purely, or FLOOR_COLOR to tint
+        // roughness: 0.9, // Adjust as needed
+        // metalness: 0.1  // Adjust as needed
+    });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -127,15 +158,20 @@ function init() {
     // generateMaze(); // Called by player 1 in multiplayer.js
     // createMazeWalls(); // Called after maze data is set (either locally for player 1 or via event for others)
 
-    // Player initial position will be set by multiplayer logic after maze is ready
+    // Player initial position will be set by multiplayer logic after maze is ready (or for simple plane)
     // See setLocalPlayerInitialPosition() in player.js, called from multiplayer.js
 
     // Create enemies (from enemy.js)
     // createEnemies(ENEMY_COUNT); // ENEMY_COUNT from config.js // Temporarily disabled for multiplayer debugging
 
     // Setup UI elements and controls (from ui.js)
-    // setupMiniMap(); // Temporarily disabled as maze is disabled
+    if (typeof DRAW_MAZE !== 'undefined' && DRAW_MAZE) {
+        // setupMiniMap(); // Minimap setup will be called from multiplayer.js after maze is ready
+    } else {
+        console.log("DRAW_MAZE is false. Skipping minimap setup. Using simple plane.");
+    }
     setupMobileControls(); // This will also fetch joystick, joystickKnob, shootButton DOM elements
+    setupFullscreenControls(); // Add call to setup fullscreen button
 
     // Add event listeners
     window.addEventListener('resize', onWindowResize); // onWindowResize from ui.js

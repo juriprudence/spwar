@@ -2,72 +2,98 @@
 
 // generateMaze using Depth-First Search (Recursive Backtracker)
 function generateMaze() {
-    // MAZE_SIZE from config.js now refers to the number of cells in one dimension.
-    // The grid for DFS needs to be larger to hold walls between cells.
-    // If MAZE_SIZE is N, grid will be (2N+1) x (2N+1).
-    // Example: MAZE_SIZE = 5 -> 11x11 grid.
-    // Cells are at (2i+1, 2j+1). Walls are at (2i, *) or (*, 2j).
-    const actualGridSize = 2 * MAZE_SIZE + 1;
-    maze.length = 0; // Clear global maze array
+    maze.length = 0; // Clear global maze array (maze is global from main.js)
 
-    // Initialize grid with all walls (1 = wall, 0 = path)
+    // Use MAZE_SIZE from config to determine dimensions for a static, open maze with borders.
+    // The actual grid size will be (2 * MAZE_SIZE + 1)
+    const gridSize = (typeof MAZE_SIZE !== 'undefined' ? MAZE_SIZE : 5); // Default to 5 if MAZE_SIZE undefined for cell count
+    const actualGridSize = 2 * gridSize + 1;
+
+    // Initialize with all paths (0) for a large open space, then add border walls.
     for (let i = 0; i < actualGridSize; i++) {
         maze[i] = [];
         for (let j = 0; j < actualGridSize; j++) {
-            maze[i][j] = 1;
+            if (i === 0 || i === actualGridSize - 1 || j === 0 || j === actualGridSize - 1) {
+                maze[i][j] = 1; // Border walls
+            } else {
+                // Randomly place walls, adjust probability (e.g., 0.2 for 20% walls) as needed.
+                // Higher probability means more walls.
+                maze[i][j] = (Math.random() < 0.2) ? 1 : 0;
+            }
+        }
+    }
+    
+    // Ensure specific spawn areas are clear after random wall generation
+    const centerIdx = Math.floor(actualGridSize / 2); // Same as (actualGridSize - 1) / 2 for odd actualGridSize
+
+    // Clear a 3x3 area around the center for Player 1 (world 0,0)
+    for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+            const r = centerIdx + i;
+            const c = centerIdx + j;
+            // Check bounds (though center +/- 1 should be within non-border for MAZE_SIZE >= 1)
+            if (r > 0 && r < actualGridSize - 1 && c > 0 && c < actualGridSize - 1) {
+                if (maze[r] && typeof maze[r][c] !== 'undefined') {
+                    maze[r][c] = 0; // 0 for path
+                }
+            }
         }
     }
 
-    const stack = [];
-    // Start DFS from cell (1,1) in the new grid coordinates
-    let currentX = 1;
-    let currentY = 1;
-    maze[currentX][currentY] = 0; // Mark as path
-    stack.push([currentX, currentY]);
+    // Clear spots for other players (e.g., world X=+4, X=-4, Z=0)
+    // World X = 4 maps to grid i = centerIdx + 2
+    // World X = -4 maps to grid i = centerIdx - 2
+    const spawnOffset = 2; // Grid unit offset from center for other spawns
 
-    while (stack.length > 0) {
-        [currentX, currentY] = stack[stack.length - 1]; // Peek
+    // Spawn 2 (e.g., world X=4, Z=0)
+    if (centerIdx + spawnOffset > 0 && centerIdx + spawnOffset < actualGridSize - 1) {
+        if (maze[centerIdx + spawnOffset] && typeof maze[centerIdx + spawnOffset][centerIdx] !== 'undefined') {
+            maze[centerIdx + spawnOffset][centerIdx] = 0;
+             // Optionally clear a small area around it too
+            if (maze[centerIdx + spawnOffset][centerIdx-1]) maze[centerIdx + spawnOffset][centerIdx-1] = 0;
+            if (maze[centerIdx + spawnOffset][centerIdx+1]) maze[centerIdx + spawnOffset][centerIdx+1] = 0;
 
-        const neighbors = [];
-        // Check North: (currentX, currentY - 2)
-        if (currentY - 2 >= 0 && maze[currentX][currentY - 2] === 1) {
-            neighbors.push(['N', currentX, currentY - 2]);
-        }
-        // Check East: (currentX + 2, currentY)
-        if (currentX + 2 < actualGridSize && maze[currentX + 2][currentY] === 1) {
-            neighbors.push(['E', currentX + 2, currentY]);
-        }
-        // Check South: (currentX, currentY + 2)
-        if (currentY + 2 < actualGridSize && maze[currentX][currentY + 2] === 1) {
-            neighbors.push(['S', currentX, currentY + 2]);
-        }
-        // Check West: (currentX - 2, currentY)
-        if (currentX - 2 >= 0 && maze[currentX - 2][currentY] === 1) {
-            neighbors.push(['W', currentX - 2, currentY]);
-        }
-
-        if (neighbors.length > 0) {
-            const [direction, nextX, nextY] = neighbors[Math.floor(Math.random() * neighbors.length)];
-
-            // Carve path to neighbor
-            if (direction === 'N') maze[currentX][currentY - 1] = 0; // Wall between
-            else if (direction === 'E') maze[currentX + 1][currentY] = 0; // Wall between
-            else if (direction === 'S') maze[currentX][currentY + 1] = 0; // Wall between
-            else if (direction === 'W') maze[currentX - 1][currentY] = 0; // Wall between
-            
-            maze[nextX][nextY] = 0; // Mark neighbor as path
-            stack.push([nextX, nextY]);
-        } else {
-            stack.pop(); // Backtrack
         }
     }
-    // Player start area maze[1][1] is guaranteed to be a path by this algorithm.
+    // Spawn 3 (e.g., world X=-4, Z=0)
+    if (centerIdx - spawnOffset > 0 && centerIdx - spawnOffset < actualGridSize - 1) {
+         if (maze[centerIdx - spawnOffset] && typeof maze[centerIdx - spawnOffset][centerIdx] !== 'undefined') {
+            maze[centerIdx - spawnOffset][centerIdx] = 0;
+            if (maze[centerIdx - spawnOffset][centerIdx-1]) maze[centerIdx - spawnOffset][centerIdx-1] = 0;
+            if (maze[centerIdx - spawnOffset][centerIdx+1]) maze[centerIdx - spawnOffset][centerIdx+1] = 0;
+        }
+    }
+    // Could add more for Z offsets too, e.g., maze[centerIdx][centerIdx + spawnOffset] = 0;
+
+    console.log(`generateMaze: Maze generation complete. Cleared spawn areas around grid center (${centerIdx},${centerIdx}). MAZE_SIZE ${gridSize} (actualGridSize ${actualGridSize}).`);
 }
 
 
 function createMazeWalls() {
     const wallGeometry = new THREE.BoxGeometry(2, 2, 2); // Each cell/wall unit is 2x2x2 world units
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: WALL_COLOR }); // WALL_COLOR from config.js
+    
+    // Load the wall texture
+    const textureLoader = new THREE.TextureLoader();
+    const wallTexture = textureLoader.load('texture/wall.jpeg',
+        function (texture) {
+            // Optional: configure texture properties here if needed
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            // texture.repeat.set(1, 1); // Adjust UV repeat if necessary for the 2x2x2 box
+            console.log("Wall texture loaded successfully.");
+        },
+        undefined, // onProgress callback (optional)
+        function (err) {
+            console.error('An error happened while loading the wall texture:', err);
+        }
+    );
+
+    const wallMaterial = new THREE.MeshStandardMaterial({
+        map: wallTexture,
+        color: 0xffffff // Set base color to white to show texture purely, or use WALL_COLOR to tint
+        // roughness: 0.8, // Adjust material properties as desired
+        // metalness: 0.2
+    });
     
     const actualGridSize = maze.length; // Should be 2 * MAZE_SIZE + 1
 

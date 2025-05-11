@@ -4,16 +4,60 @@
 let photon;
 let otherPlayers = {}; // Map of playerID -> player object
 let localPlayerID = null;
+let localPlayerColor = 0xdddddd; // Default color, will be randomized in onJoinRoom
+
+// Centralized function to manage enemy spawning based on remote players
+function manageEnemySpawningBasedOnRemotePlayers() {
+    if (typeof otherPlayers === 'undefined' || typeof enemies === 'undefined' ||
+        typeof createEnemies !== 'function' || typeof removeAllEnemies !== 'function' ||
+        typeof ENEMY_COUNT === 'undefined') {
+        console.warn("manageEnemySpawning: Missing necessary globals or functions (otherPlayers, enemies, createEnemies, removeAllEnemies, ENEMY_COUNT).");
+        return;
+    }
+
+    let aliveRemotePlayers = 0;
+    for (const id in otherPlayers) {
+        // Consider a player alive if HP is not explicitly 0 or less.
+        // If hp is undefined, assume they are alive until first update.
+        if (otherPlayers[id] && (typeof otherPlayers[id].hp === 'undefined' || otherPlayers[id].hp > 0)) {
+            aliveRemotePlayers++;
+        }
+    }
+
+    // console.log(`manageEnemySpawning: Found ${aliveRemotePlayers} alive remote players. Current enemy count: ${enemies.length}`);
+
+    if (aliveRemotePlayers === 0) {
+        // No alive remote players, ensure local enemies are present
+        if (enemies.length === 0) {
+            console.log("manageEnemySpawning: No alive remote players and no local enemies. Spawning enemies.");
+            createEnemies(ENEMY_COUNT);
+        } else {
+            // console.log("manageEnemySpawning: No alive remote players, local enemies already present.");
+        }
+    } else {
+        // One or more alive remote players, ensure local enemies are removed
+        if (enemies.length > 0) {
+            console.log("manageEnemySpawning: Alive remote players present. Removing local enemies.");
+            removeAllEnemies();
+        } else {
+            // console.log("manageEnemySpawning: Alive remote players present, no local enemies to remove.");
+        }
+    }
+}
 
 // Player model for other players (visible to others)
-function createPlayerModel() {
+function createPlayerModel(color) { // Added color parameter
     const playerGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-    const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x2288ff });
+    const modelColor = color !== undefined ? color : 0x666666; // Use provided color or a default gray
+    const playerMaterial = new THREE.MeshStandardMaterial({ color: modelColor });
     const playerModel = new THREE.Mesh(playerGeometry, playerMaterial);
     
     // Add a head to make direction visible
+    // Head color can be a fixed contrasting color or derived. Let's use a slightly lighter/different shade.
+    const headBaseColor = color !== undefined ? color : 0x666666;
+    const headMaterialColor = ((headBaseColor & 0xfefefe) >> 1) + 0x303030; // Make it a bit different and ensure not too dark
     const headGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.6);
-    const headMaterial = new THREE.MeshStandardMaterial({ color: 0x22aaff });
+    const headMaterial = new THREE.MeshStandardMaterial({ color: Math.min(0xffffff, headMaterialColor) });
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.set(0, 0.7, 0.2);
     playerModel.add(head);
@@ -64,7 +108,9 @@ function onJoinRoom() {
     otherPlayers = {};
     console.log("onJoinRoom: Cleared otherPlayers object.");
     localPlayerID = photon.myActor().actorNr;
-    console.log("onJoinRoom: localPlayerID set to:", localPlayerID, "My Actor:", photon.myActor());
+    // Generate a random color for the local player
+    localPlayerColor = Math.random() * 0xffffff;
+    console.log("onJoinRoom: localPlayerID set to:", localPlayerID, "My Actor:", photon.myActor(), "My Color:", localPlayerColor.toString(16));
 
     // Create models for players already in the room
     console.log("onJoinRoom: Checking for existing players in the room...");
@@ -95,30 +141,29 @@ function onJoinRoom() {
     } else {
         console.warn("onJoinRoom: photon.actors list not found or empty.");
     }
-    
-    // Maze logic temporarily disabled for simple plane testing
-    // if (photon.myActor().actorNr === 1) { // Player 1 is the host
-    //     console.log("Local player is Player 1. Generating and sending maze.");
-    //     generateMaze();    // Generate the maze data
-    //     createMazeWalls(); // Build it locally
-    //     sendMazeData();    // Send it to others
-    // } else {
-    //     console.log("Local player is not Player 1. Will wait for maze data.");
-    // }
-    setLocalPlayerInitialPosition(); // Set player position (will be updated for different spawns)
+
+    // Maze logic for static maze or simple plane
+    if (typeof DRAW_MAZE !== 'undefined' && DRAW_MAZE) {
+        console.log("DRAW_MAZE is true. All clients will generate the static maze locally.");
+        if (typeof generateMaze === 'function') generateMaze();    // All clients generate the same static maze
+        if (typeof createMazeWalls === 'function') createMazeWalls(); // All clients build it locally
+        if (typeof setupMiniMap === 'function') {
+            console.log("Calling setupMiniMap from onJoinRoom.");
+            setupMiniMap(); // Setup minimap after maze is ready for this client
+        }
+    } else {
+        console.log("DRAW_MAZE is false. Skipping maze generation. Using simple plane.");
+    }
+    setLocalPlayerInitialPosition(); // Set player position (works for both maze and plane)
+
+    // Manage enemy spawning based on current remote player status
+    manageEnemySpawningBasedOnRemotePlayers();
 }
 
-/*
-// Send maze data to all players - Temporarily disabled
+/* // sendMazeData is no longer needed for static maze
 function sendMazeData() {
-    if (!maze || maze.length === 0 || !photon.isJoinedToRoom()) {
-        console.warn("sendMazeData: Maze not generated or not in room.");
-        return;
-    }
-    
-    photon.raiseEvent(1, {
-        maze: maze
-    });
+    // This function is now obsolete as maze is static and generated by all clients.
+    // console.log("sendMazeData: This function is obsolete for static mazes.");
 }
 */
 
@@ -147,13 +192,14 @@ function onPlayerJoin(actor) {
     };
     console.log(`onPlayerJoin: Stored remote player ${playerID} in otherPlayers:`, otherPlayers[playerID]);
     
-    // If I'm player 1, send maze data to new players - Temporarily disabled
-    // Player 1 already sent maze onJoinRoom. If a new player joins later,
-    // player 1 should resend the maze data to ensure the new player gets it.
+    manageEnemySpawningBasedOnRemotePlayers();
+    
+    // No need to send maze data for static mazes.
     /*
-    if (photon.myActor().actorNr === 1) {
-        console.log("Player 1 sending maze data to newly joined player:", playerID);
-        sendMazeData();
+    if (typeof DRAW_MAZE !== 'undefined' && DRAW_MAZE && photon.myActor().actorNr === 1) {
+        // This logic is obsolete for static mazes.
+        // console.log(`Player 1 sending maze data to newly joined player: ${playerID}`);
+        // sendMazeData();
     }
     */
 }
@@ -166,6 +212,8 @@ function onPlayerLeave(actor) {
     if (otherPlayers[playerID]) {
         scene.remove(otherPlayers[playerID].model);
         delete otherPlayers[playerID];
+        
+        manageEnemySpawningBasedOnRemotePlayers();
     }
 }
 
@@ -218,16 +266,13 @@ function onEvent(code, content, actorNr) {
     if (actorNr === localPlayerID) return;
     
     switch (code) {
+        // Case 1 for maze data is no longer needed for static maze
         /*
-        case 1: // Maze data - Temporarily disabled
-            if (content.maze) {
-                console.log("Received maze data from actor:", actorNr);
-                clearMazeWalls(); // Clear any existing walls first
-                maze = content.maze; // Update local maze variable
-                createMazeWalls();   // Build the new maze
-                setLocalPlayerInitialPosition(); // Set player position now that maze exists
-            } else {
-                console.warn("Received event 1 (maze data) but content.maze is missing.");
+        case 1: // Maze data
+            if (typeof DRAW_MAZE !== 'undefined' && DRAW_MAZE) {
+                // This case is obsolete for static mazes, as each client generates it locally.
+                // If for some reason it's still called, log it.
+                console.warn("Received event 1 (maze data) which is obsolete for static mazes. Actor:", actorNr, "Content:", content);
             }
             break;
         */
@@ -314,6 +359,8 @@ function updateRemotePlayerState(playerID, data) {
         if (!playerObj.hp || playerObj.hp !== data.hp) {
              playerObj.hp = data.hp;
              console.log(`updateRemotePlayerState: Updated remote player ${playerID} conceptual HP to: ${playerObj.hp}`);
+             // If a player's HP was updated (especially if it dropped to 0), re-evaluate enemy spawning
+             manageEnemySpawningBasedOnRemotePlayers();
         }
     }
 }

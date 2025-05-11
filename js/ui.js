@@ -1,72 +1,112 @@
 // UI related functions
 
+// Variables for the turning joystick (assuming turnJoystickDirection is initialized in main.js)
+var turnJoystickElement;
+var turnJoystickKnobElement;
+var turnJoystickActive = false;
+var turnJoystickRect;
+// var turnJoystickDirection = new THREE.Vector2(); // Should be in main.js
+
+let miniMapCanvasContext = null; // To store the minimap's 2D rendering context
+let lastMiniMapWidth = 0;
+let lastMiniMapHeight = 0;
+
 function setupMiniMap() {
     const miniMapElement = document.getElementById('miniMap');
-    if (!miniMapElement) return;
+    if (!miniMapElement) {
+        console.warn("miniMapElement not found for setup.");
+        return;
+    }
 
-    const mapContext = document.createElement('canvas').getContext('2d');
-    mapContext.canvas.width = 150; // Consider making these configurable
-    mapContext.canvas.height = 150;
+    // Ensure styles are applied before getting dimensions
+    const computedStyle = getComputedStyle(miniMapElement);
+    const newWidth = parseInt(computedStyle.width, 10);
+    const newHeight = parseInt(computedStyle.height, 10);
 
-    miniMapElement.innerHTML = ''; // Clear previous map if any
-    miniMapElement.appendChild(mapContext.canvas);
+    if (!miniMapCanvasContext) { // Create canvas only once
+        const canvas = document.createElement('canvas');
+        miniMapCanvasContext = canvas.getContext('2d');
+        miniMapElement.innerHTML = ''; // Clear previous map if any
+        miniMapElement.appendChild(canvas);
+    }
+
+    miniMapCanvasContext.canvas.width = newWidth;
+    miniMapCanvasContext.canvas.height = newHeight;
+    lastMiniMapWidth = newWidth;
+    lastMiniMapHeight = newHeight;
+
+    console.log(`Minimap canvas set to: ${newWidth}x${newHeight}`);
+
 
     function updateMiniMap() {
-        if (!maze || maze.length === 0 || !player || !enemies || !mapContext) { // Check if globals are available and maze is populated
+        // Check for otherPlayers global from multiplayer.js
+        if (!maze || maze.length === 0 || !player || !enemies || !miniMapCanvasContext || typeof otherPlayers === 'undefined') {
             requestAnimationFrame(updateMiniMap);
             return;
         }
-        mapContext.fillStyle = 'black';
-        mapContext.fillRect(0, 0, 150, 150);
+        // Use canvas dimensions for drawing
+        const currentMapWidth = miniMapCanvasContext.canvas.width;
+        const currentMapHeight = miniMapCanvasContext.canvas.height;
 
-        const actualGridSize = maze.length; // This is (2 * MAZE_SIZE + 1)
-        const cellSize = 150 / actualGridSize;
+        miniMapCanvasContext.fillStyle = 'black';
+        miniMapCanvasContext.fillRect(0, 0, currentMapWidth, currentMapHeight);
+
+        const actualGridSize = maze.length;
+        // Base cell size on the smaller dimension of the minimap to maintain aspect ratio
+        const cellSize = Math.min(currentMapWidth, currentMapHeight) / actualGridSize;
 
         // Draw maze paths
         for (let i = 0; i < actualGridSize; i++) {
             for (let j = 0; j < actualGridSize; j++) {
                 if (maze[i][j] === 0) { // 0 is path
-                    mapContext.fillStyle = '#555';
-                    mapContext.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
+                    miniMapCanvasContext.fillStyle = '#555';
+                    miniMapCanvasContext.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
                 }
             }
         }
         
-        // Helper to convert world coordinates to maze grid indices
-        // World X/Z = (grid_idx * 2) - actualGridSize + 1
-        // grid_idx * 2 = World_coord + actualGridSize - 1
-        // grid_idx = (World_coord + actualGridSize - 1) / 2
         const worldToGrid = (worldCoord) => (worldCoord + actualGridSize - 1) / 2;
 
-        // Draw enemies
-        mapContext.fillStyle = 'red';
+        miniMapCanvasContext.fillStyle = 'red';
         enemies.forEach(enemy => {
             const gridX = worldToGrid(enemy.position.x);
-            const gridZ = worldToGrid(enemy.position.z); // Z in world is Y on map
-            mapContext.fillRect(gridX * cellSize - 2, gridZ * cellSize - 2, 4, 4);
+            const gridZ = worldToGrid(enemy.position.z);
+            miniMapCanvasContext.fillRect(gridX * cellSize - 2, gridZ * cellSize - 2, 4, 4);
         });
 
-        // Draw player
-        mapContext.fillStyle = 'blue';
+        miniMapCanvasContext.fillStyle = 'blue';
         const playerGridX = worldToGrid(player.position.x);
-        const playerGridZ = worldToGrid(player.position.z); // Z in world is Y on map
-        mapContext.fillRect(playerGridX * cellSize - 3, playerGridZ * cellSize - 3, 6, 6);
+        const playerGridZ = worldToGrid(player.position.z);
+        miniMapCanvasContext.fillRect(playerGridX * cellSize - 3, playerGridZ * cellSize - 3, 6, 6);
 
-        // Draw player direction
-        mapContext.strokeStyle = 'white'; // Changed from fillStyle for line
+        // Draw other players
+        // Assuming otherPlayers is a global object from multiplayer.js: { playerID: { model: { position, rotation }, targetPosition, targetRotationY, hp, color? } }
+        // We'll use a default color for now, or try to get it from their model if available.
+        miniMapCanvasContext.fillStyle = 'green'; // Default color for other players
+        for (const id in otherPlayers) {
+            const remotePlayer = otherPlayers[id];
+            // Check if remote player is alive (hp > 0) before drawing
+            if (remotePlayer && remotePlayer.model && remotePlayer.model.position && (typeof remotePlayer.hp === 'undefined' || remotePlayer.hp > 0)) {
+                // Use the model's current interpolated position for smoother minimap representation
+                const remotePlayerGridX = worldToGrid(remotePlayer.model.position.x);
+                const remotePlayerGridZ = worldToGrid(remotePlayer.model.position.z);
+                
+                // Use a specific color if available, e.g., from remotePlayer.color or remotePlayer.model.material.color
+                // For now, a fixed 'green' or slightly different size.
+                miniMapCanvasContext.fillRect(remotePlayerGridX * cellSize - 2, remotePlayerGridZ * cellSize - 2, 5, 5); // Slightly different size/shape
+            }
+        }
+
+        miniMapCanvasContext.strokeStyle = 'white';
         const dirX = Math.sin(player.rotation.y);
         const dirZ = Math.cos(player.rotation.y);
-        mapContext.beginPath();
-        mapContext.moveTo(playerGridX * cellSize, playerGridZ * cellSize);
-        // For minimap: +X is right, +Y is down.
-        // Player forward: -Z world. Player right: +X world.
-        // Player rotation.y = 0 means facing -Z world. sin(0)=0, cos(0)=1.
-        // Minimap line should go from playerGridPos towards (playerGridX - sin(rotY)*len, playerGridZ - cos(rotY)*len)
-        mapContext.lineTo(
-            (playerGridX - dirX * 0.5 / cellSize * 10) * cellSize, // 0.5 is arbitrary length factor for minimap
-            (playerGridZ - dirZ * 0.5 / cellSize * 10) * cellSize  // dirZ is correct for Z-axis mapping to Y on map
+        miniMapCanvasContext.beginPath();
+        miniMapCanvasContext.moveTo(playerGridX * cellSize, playerGridZ * cellSize);
+        miniMapCanvasContext.lineTo(
+            (playerGridX - dirX * 0.5 / cellSize * 10) * cellSize,
+            (playerGridZ - dirZ * 0.5 / cellSize * 10) * cellSize
         );
-        mapContext.stroke();
+        miniMapCanvasContext.stroke();
 
         requestAnimationFrame(updateMiniMap);
     }
@@ -78,6 +118,10 @@ function setupMobileControls() {
     joystick = document.getElementById('joystick'); // joystick is global in main.js
     joystickKnob = document.getElementById('joystickKnob'); // joystickKnob is global in main.js
     shootButton = document.getElementById('shootButton'); // shootButton is global in main.js
+
+    // Initialize turn joystick elements
+    turnJoystickElement = document.getElementById('turnJoystick');
+    turnJoystickKnobElement = document.getElementById('turnJoystickKnob');
 
     if (joystick) {
         joystick.addEventListener('touchstart', function(event) {
@@ -127,14 +171,78 @@ function setupMobileControls() {
         }, { passive: false });
     }
 
+    if (turnJoystickElement) {
+        turnJoystickElement.addEventListener('touchstart', function(event) {
+            event.preventDefault();
+            turnJoystickActive = true;
+            turnJoystickRect = turnJoystickElement.getBoundingClientRect();
+            updateTurnJoystickPosition(event.touches[0]);
+        }, { passive: false });
+
+        document.addEventListener('touchmove', function(event) {
+            if (turnJoystickActive) {
+                // Check if the touch is for the turn joystick
+                // This simple check assumes one touch for movement and one for turning.
+                // A more robust solution would track touch identifiers.
+                for (let i = 0; i < event.touches.length; i++) {
+                    const touch = event.touches[i];
+                    if (touch.target === turnJoystickElement || turnJoystickElement.contains(touch.target)) {
+                        event.preventDefault();
+                        updateTurnJoystickPosition(touch);
+                        break;
+                    }
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', function(event) {
+            let stillTouchingTurnJoystick = false;
+            if (event.touches) {
+                for (let i = 0; i < event.touches.length; i++) {
+                    if (event.touches[i].target === turnJoystickElement || turnJoystickElement.contains(event.touches[i].target)) {
+                        stillTouchingTurnJoystick = true;
+                        break;
+                    }
+                }
+            }
+            // Check if the touchend originated from the turn joystick or related touches are gone
+            let relevantTouchEnded = true;
+            if (event.changedTouches) {
+                relevantTouchEnded = false;
+                for (let i = 0; i < event.changedTouches.length; i++) {
+                    if (event.changedTouches[i].target === turnJoystickElement || turnJoystickElement.contains(event.changedTouches[i].target)) {
+                        relevantTouchEnded = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!stillTouchingTurnJoystick && relevantTouchEnded) {
+                 if (turnJoystickActive) { // Only reset if it was the active one
+                    turnJoystickActive = false;
+                    if(turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
+                    if(turnJoystickDirection) turnJoystickDirection.set(0, 0); // turnJoystickDirection is global
+                 }
+            }
+        });
+        
+        turnJoystickElement.addEventListener('touchend', function(event) {
+            event.preventDefault();
+            turnJoystickActive = false;
+            if(turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
+            if(turnJoystickDirection) turnJoystickDirection.set(0, 0);
+        });
+    }
+
     // Prevent default behavior for touch events on game container to avoid scrolling/zooming
     const gameContainer = document.getElementById('gameContainer');
     if (gameContainer) {
         gameContainer.addEventListener('touchstart', function(event) {
-            // Allow touch on specific controls like joystick and shoot button
+            // Allow touch on specific controls
             if (event.target !== joystick && !joystick.contains(event.target) &&
-                event.target !== shootButton && !shootButton.contains(event.target)) {
-                // event.preventDefault(); // This might be too aggressive, let's test
+                event.target !== shootButton && !shootButton.contains(event.target) &&
+                event.target !== turnJoystickElement && !turnJoystickElement.contains(event.target) ) {
+                // event.preventDefault(); // This might be too aggressive
             }
         }, { passive: false });
     }
@@ -162,6 +270,28 @@ function updateJoystickPosition(touch) {
     joystickDirection.y = deltaY / maxRadius;
 }
 
+function updateTurnJoystickPosition(touch) {
+    if (!turnJoystickRect || !turnJoystickKnobElement || !turnJoystickDirection) return;
+
+    const centerX = turnJoystickRect.left + turnJoystickRect.width / 2;
+    const centerY = turnJoystickRect.top + turnJoystickRect.height / 2;
+
+    let deltaX = touch.clientX - centerX;
+    let deltaY = touch.clientY - centerY;
+
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const maxRadius = turnJoystickRect.width / 2;
+
+    if (distance > maxRadius) {
+        deltaX *= maxRadius / distance;
+        deltaY *= maxRadius / distance;
+    }
+
+    turnJoystickKnobElement.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    turnJoystickDirection.x = deltaX / maxRadius;
+    turnJoystickDirection.y = deltaY / maxRadius; // Y might be used for pitch, or ignored
+}
+
 function gameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
     const restartButton = document.getElementById('restartButton');
@@ -176,6 +306,14 @@ function gameOver() {
         newRestartButton.addEventListener('click', function() {
             // Reset game state (playerHealth is global in main.js)
             playerHealth = PLAYER_HEALTH_INITIAL; // From config.js
+            isPlayerDead = false; // Reset player death state (isPlayerDead is global from main.js)
+            
+            // Ensure player (camera) is visible if it was hidden.
+            // if (player && typeof player.visible !== 'undefined') {
+            //     player.visible = true;
+            // }
+
+
             if (player) { // player is global in main.js
                  // Player starts at grid cell (1,1) of the 'maze' array.
                  // World X = (grid_i * 2) - actualGridSize + 1
@@ -213,6 +351,94 @@ function onWindowResize() {
     if (joystick) { // joystick is global
         joystickRect = joystick.getBoundingClientRect(); // joystickRect is global
     }
+    if (turnJoystickElement) {
+        turnJoystickRect = turnJoystickElement.getBoundingClientRect();
+    }
+
+    // Check and update minimap canvas size if necessary
+    const miniMapElement = document.getElementById('miniMap');
+    if (miniMapCanvasContext && miniMapElement) {
+        const computedStyle = getComputedStyle(miniMapElement);
+        const newWidth = parseInt(computedStyle.width, 10);
+        const newHeight = parseInt(computedStyle.height, 10);
+
+        if (newWidth !== lastMiniMapWidth || newHeight !== lastMiniMapHeight) {
+            console.log(`Resizing minimap canvas to: ${newWidth}x${newHeight}`);
+            miniMapCanvasContext.canvas.width = newWidth;
+            miniMapCanvasContext.canvas.height = newHeight;
+            lastMiniMapWidth = newWidth;
+            lastMiniMapHeight = newHeight;
+            // The updateMiniMap loop will pick up the new size on its next frame
+        }
+    }
+}
+
+function setupFullscreenControls() {
+    const fullscreenButton = document.getElementById('fullscreenButton');
+    if (!fullscreenButton) {
+        console.warn("fullscreenButton element not found in HTML.");
+        return;
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+            // Enter fullscreen
+            const element = document.documentElement; // Fullscreen the whole page
+            if (element.requestFullscreen) {
+                element.requestFullscreen();
+            } else if (element.mozRequestFullScreen) { /* Firefox */
+                element.mozRequestFullScreen();
+            } else if (element.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+                element.webkitRequestFullscreen();
+            } else if (element.msRequestFullscreen) { /* IE/Edge */
+                element.msRequestFullscreen();
+            }
+
+            // Attempt to lock orientation to landscape
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(function(error) {
+                    console.warn('Screen orientation lock failed:', error);
+                });
+            } else {
+                console.warn('Screen orientation lock API not supported.');
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) { /* Firefox */
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) { /* Chrome, Safari & Opera */
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { /* IE/Edge */
+                document.msExitFullscreen();
+            }
+            // Unlocking orientation is usually handled by the browser when exiting fullscreen
+        }
+    }
+
+    fullscreenButton.addEventListener('click', toggleFullscreen);
+    fullscreenButton.addEventListener('touchstart', (event) => {
+        event.preventDefault(); // Prevent click event from firing too
+        toggleFullscreen();
+    }, { passive: false });
+
+    function updateFullscreenButtonText() {
+        if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+            fullscreenButton.textContent = 'EXIT FULLSCREEN';
+        } else {
+            fullscreenButton.textContent = 'FULLSCREEN';
+        }
+    }
+
+    // Update button text on fullscreen change
+    document.addEventListener('fullscreenchange', updateFullscreenButtonText);
+    document.addEventListener('mozfullscreenchange', updateFullscreenButtonText);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButtonText);
+    document.addEventListener('msfullscreenchange', updateFullscreenButtonText);
+
+    // Initial button text
+    updateFullscreenButtonText();
 }
 // window.addEventListener('resize', onWindowResize); // Listener will be added in main.js
 // Placeholder for player list UI

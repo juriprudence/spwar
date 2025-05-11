@@ -1,7 +1,8 @@
 // Game Configuration
 
 // Maze
-const MAZE_SIZE = 15; // Increased maze size
+const MAZE_SIZE = 25; // Increased maze size further
+const DRAW_MAZE = true; // Set to false to draw a simple plane instead of the maze
 
 // Player
 let PLAYER_HEALTH_INITIAL = 100; // Use 'let' if it's reset, 'const' if only initial

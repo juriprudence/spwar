@@ -40,6 +40,26 @@
             left: 25px;
             touch-action: none;
         }
+        #turnJoystick {
+            position: absolute;
+            bottom: 200px; /* Moved up, above the shoot button */
+            right: 50px; /* Position on the right side */
+            width: 100px;
+            height: 100px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            touch-action: none;
+        }
+        #turnJoystickKnob {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            top: 25px;
+            left: 25px;
+            touch-action: none;
+        }
         #shootButton {
             position: absolute;
             bottom: 70px;
@@ -80,7 +100,64 @@
             height: 150px;
             background-color: rgba(0, 0, 0, 0.5);
             border: 2px solid white;
+            transition: width 0.3s, height 0.3s; /* Smooth transition for size changes */
         }
+
+        /* Responsive adjustments for landscape on smaller height devices (e.g., phones) */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #miniMap {
+                width: 100px;
+                height: 100px;
+                top: 10px; /* Adjust position if needed */
+                right: 10px;
+            }
+
+            /* Example: Adjust joystick positions slightly if needed */
+            #joystick {
+                bottom: 30px;
+                left: 30px;
+                width: 80px; /* Slightly smaller joystick */
+                height: 80px;
+            }
+            #joystickKnob {
+                width: 40px;
+                height: 40px;
+                top: 20px;
+                left: 20px;
+            }
+            #turnJoystick {
+                bottom: 120px; /* Adjust if it overlaps with smaller shoot button */
+                right: 30px;
+                width: 80px;
+                height: 80px;
+            }
+            #turnJoystickKnob {
+                width: 40px;
+                height: 40px;
+                top: 20px;
+                left: 20px;
+            }
+            #shootButton {
+                bottom: 40px;
+                right: 40px; /* Move slightly from edge */
+                width: 50px;
+                height: 50px;
+                line-height: 50px;
+            }
+            #fullscreenButton {
+                top: 10px;
+                left: 150px; /* Adjust based on health bar and new minimap size */
+                padding: 6px 10px;
+                font-size: 10px;
+            }
+             #healthBar {
+                top: 10px;
+                left: 10px;
+                width: 130px; /* Slightly smaller health bar */
+                height: 15px;
+            }
+        }
+
         #gameOverScreen {
             position: absolute;
             top: 0;
@@ -103,13 +180,34 @@
             color: white;
             cursor: pointer;
         }
+        #fullscreenButton {
+            position: absolute;
+            top: 20px; /* Align with healthBar */
+            left: 230px; /* Next to healthBar (healthBar width 200px + 20px left + 10px margin) */
+            padding: 8px 12px;
+            background-color: rgba(50, 50, 50, 0.7);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1000; /* Ensure it's on top */
+            touch-action: none; /* Prevent default touch actions */
+            user-select: none; /* Prevent text selection */
+            -webkit-user-select: none; /* Safari */
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
+        <button id="fullscreenButton">FULLSCREEN</button>
         <canvas id="gameCanvas"></canvas>
         <div id="joystick">
             <div id="joystickKnob"></div>
+        </div>
+        <div id="turnJoystick">
+            <div id="turnJoystickKnob"></div>
         </div>
         <div id="shootButton">FIRE</div>
         <div id="healthBar">
