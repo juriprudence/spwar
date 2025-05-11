@@ -29,8 +29,13 @@ function manageEnemySpawningBasedOnRemotePlayers() {
     if (aliveRemotePlayers === 0) {
         // No alive remote players, ensure local enemies are present
         if (enemies.length === 0) {
-            console.log("manageEnemySpawning: No alive remote players and no local enemies. Spawning enemies.");
-            createEnemies(ENEMY_COUNT);
+            // Ensure maze is ready before attempting to create enemies
+            if (typeof maze !== 'undefined' && maze.length > 0) {
+                console.log("manageEnemySpawning: No alive remote players and no local enemies. Maze ready. Spawning enemies.");
+                createEnemies(ENEMY_COUNT);
+            } else {
+                console.warn("manageEnemySpawning: No alive remote players, no local enemies, but MAZE IS NOT READY. Cannot spawn enemies yet.");
+            }
         } else {
             // console.log("manageEnemySpawning: No alive remote players, local enemies already present.");
         }
@@ -45,28 +50,10 @@ function manageEnemySpawningBasedOnRemotePlayers() {
     }
 }
 
-// Player model for other players (visible to others)
-function createPlayerModel(color) { // Added color parameter
-    const playerGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-    const modelColor = color !== undefined ? color : 0x666666; // Use provided color or a default gray
-    const playerMaterial = new THREE.MeshStandardMaterial({ color: modelColor });
-    const playerModel = new THREE.Mesh(playerGeometry, playerMaterial);
-    
-    // Add a head to make direction visible
-    // Head color can be a fixed contrasting color or derived. Let's use a slightly lighter/different shade.
-    const headBaseColor = color !== undefined ? color : 0x666666;
-    const headMaterialColor = ((headBaseColor & 0xfefefe) >> 1) + 0x303030; // Make it a bit different and ensure not too dark
-    const headGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.6);
-    const headMaterial = new THREE.MeshStandardMaterial({ color: Math.min(0xffffff, headMaterialColor) });
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.set(0, 0.7, 0.2);
-    playerModel.add(head);
-    
-    // Make player cast shadow
-    playerModel.castShadow = true;
-    playerModel.receiveShadow = true;
-    return playerModel;
-}
+// Player model for other players (visible to others) - Now uses createRobotPlayerModel
+// The old createPlayerModel function is replaced by the one in js/player_model.js
+// We'll call createRobotPlayerModel directly where createPlayerModel was called.
+// function createPlayerModel(color) { ... } // This function is now removed/commented
 
 // Initialize Photon connection
 function initializeMultiplayer() {
@@ -123,12 +110,26 @@ function onJoinRoom() {
                 const existingPlayerID = actor.actorNr;
                 console.log(`onJoinRoom: Found existing remote player ${existingPlayerID}. Attempting to create model.`);
                 if (!otherPlayers[existingPlayerID]) {
-                    const playerModel = createPlayerModel();
-                    // Set a distinct initial position for these pre-existing players for debugging
-                    playerModel.position.set(existingPlayerID * 2, 0.9, -7); // Offset by actorNr, further back
+                    // Use the new robot model creation function
+                    const playerModel = createRobotPlayerModel(Math.random() * 0xffffff); // Assign a random color
+                    // The model's origin is at its base. Position it so its base is on the "floor" (y=0)
+                    // The logical player position in data.position.y is eye level.
+                    // For the model itself, we want its base on the ground.
+                    // The createRobotPlayerModel is built with its base at y=0 of its local group.
+                    // The player's logical height is PLAYER_EYE_LEVEL (e.g. 1.6).
+                    // The model's height is ~1.6.
+                    // We set the model's y position to 0, as its internal geometry is built upwards from y=0.
+                    playerModel.position.set(existingPlayerID * 2, 0, -7); // Offset by actorNr, further back, Y=0 for base on ground
                     scene.add(playerModel);
-                    otherPlayers[existingPlayerID] = { model: playerModel, lastUpdate: Date.now() };
-                    console.log(`onJoinRoom: Created and stored model for existing remote player ${existingPlayerID}.`);
+                    otherPlayers[existingPlayerID] = {
+                        model: playerModel,
+                        lastUpdate: Date.now(),
+                        // Initialize targetPosition to current model position to avoid jump
+                        targetPosition: playerModel.position.clone(),
+                        targetRotationY: playerModel.rotation.y,
+                        isMoving: false // For animation
+                    };
+                    console.log(`onJoinRoom: Created and stored ROBOT model for existing remote player ${existingPlayerID}.`);
                 } else {
                     console.log(`onJoinRoom: Model for existing remote player ${existingPlayerID} already present.`);
                 }
@@ -178,17 +179,21 @@ function onPlayerJoin(actor) {
     }
     
     console.log(`onPlayerJoin: actorNr ${playerID} is a remote player. Creating model.`);
-    // Create player model
-    const playerModel = createPlayerModel();
-    // Set a test initial position for the remote player model
-    playerModel.position.set(0, 0.9, -5); // X=0, Y=0.9 (on floor), Z=-5 (in front of default camera)
+    // Create player model using the new function
+    const playerModel = createRobotPlayerModel(Math.random() * 0xffffff); // Assign a random color
+    // Position model with its base on the ground (y=0)
+    playerModel.position.set(0, 0, -5); // Initial test position, Y=0 for base on ground
     scene.add(playerModel);
-    console.log(`onPlayerJoin: Added player model for remote actorNr ${playerID} to scene at initial test position:`, playerModel.position);
+    console.log(`onPlayerJoin: Added ROBOT player model for remote actorNr ${playerID} to scene at initial test position:`, playerModel.position);
     
     // Store player
     otherPlayers[playerID] = {
         model: playerModel,
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
+        // Initialize targetPosition to current model position
+        targetPosition: playerModel.position.clone(),
+        targetRotationY: playerModel.rotation.y,
+        isMoving: false // For animation
     };
     console.log(`onPlayerJoin: Stored remote player ${playerID} in otherPlayers:`, otherPlayers[playerID]);
     
@@ -335,17 +340,21 @@ function updateRemotePlayerState(playerID, data) {
     playerObj.lastUpdate = Date.now();
     
     // Update position and rotation with lerping
+    let wasMoving = playerObj.isMoving;
+    playerObj.isMoving = false; // Assume not moving unless position changes significantly
+
     if (data.position) {
-        // Create target position if it doesn't exist
+        const newTargetPos = new THREE.Vector3(data.position.x, 0, data.position.z); // Y is 0 for base on ground
+        
         if (!playerObj.targetPosition) {
-            playerObj.targetPosition = new THREE.Vector3(
-                data.position.x,
-                data.position.y,
-                data.position.z
-            );
+            playerObj.targetPosition = newTargetPos.clone();
+            playerObj.model.position.copy(newTargetPos); // Snap to first position
         } else {
-            // Update target
-            playerObj.targetPosition.set(data.position.x, data.position.y, data.position.z);
+            // Check if position changed enough to be considered moving
+            if (playerObj.targetPosition.distanceToSquared(newTargetPos) > 0.001) {
+                 playerObj.isMoving = true;
+            }
+            playerObj.targetPosition.copy(newTargetPos);
         }
     }
     
@@ -408,13 +417,27 @@ function updateOtherPlayers(delta) {
         if (now - playerObj.lastUpdate > 5000) {
             scene.remove(playerObj.model);
             delete otherPlayers[playerID];
+            manageEnemySpawningBasedOnRemotePlayers(); // Re-check after removing a timed-out player
             continue;
         }
         
         // Smoothly interpolate to target position/rotation if exists
         if (playerObj.targetPosition) {
-            // Lerp position
-            playerObj.model.position.lerp(playerObj.targetPosition, 0.2);
+            playerObj.model.position.lerp(playerObj.targetPosition, 0.2); // Interpolate Y as well, should be 0
+        }
+        
+        // Determine if the model is actually moving for animation
+        // Compare current model position to its target. If very close, it might have stopped.
+        if (playerObj.targetPosition && playerObj.model.position.distanceToSquared(playerObj.targetPosition) < 0.01) {
+            playerObj.isMoving = false; // Close enough to target, consider stopped
+        } else if (playerObj.targetPosition) {
+            playerObj.isMoving = true; // Still moving towards target
+        }
+
+
+        if (playerObj.model.userData && typeof animateRobotPlayerWalk === 'function') {
+            playerObj.model.userData.isMoving = playerObj.isMoving; // Update animation flag
+            animateRobotPlayerWalk(playerObj.model, delta);
         }
         
         if (playerObj.targetRotationY !== undefined) {
