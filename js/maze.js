@@ -93,3 +93,17 @@ function createMazeWalls() {
         }
     }
 }
+function clearMazeWalls() {
+    if (scene && walls && walls.length > 0) { // scene and walls are global
+        console.log("Clearing existing maze walls. Count:", walls.length);
+        walls.forEach(wall => {
+            scene.remove(wall);
+            // Optional: Dispose geometry and material if memory becomes an issue
+            // if (wall.geometry) wall.geometry.dispose();
+            // if (wall.material) wall.material.dispose();
+        });
+        walls.length = 0; // Clear the array
+    } else {
+        console.log("clearMazeWalls: No walls to clear or scene/walls array not available.");
+    }
+}

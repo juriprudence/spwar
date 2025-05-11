@@ -138,3 +138,34 @@ function handleMouseMove(event) {
 // document.addEventListener('keydown', onKeyDown);
 // document.addEventListener('keyup', onKeyUp);
 // document.addEventListener('mousemove', handleMouseMove);
+function setLocalPlayerInitialPosition() {
+    if (!player) { // player is global from main.js
+        console.error("setLocalPlayerInitialPosition: Player object not initialized.");
+        return;
+    }
+    if (typeof MAZE_SIZE === 'undefined' || typeof PLAYER_EYE_LEVEL === 'undefined') { // MAZE_SIZE, PLAYER_EYE_LEVEL from config.js
+        console.error("setLocalPlayerInitialPosition: MAZE_SIZE or PLAYER_EYE_LEVEL not defined. Ensure config.js is loaded.");
+        // Fallback to a default position if config is not loaded, though this is not ideal.
+        player.position.set(0, 1.6, 0); 
+        return;
+    }
+
+    // Simplified spawning for flat plane testing
+    let startX = 0;
+    let startZ = 0;
+
+    if (typeof localPlayerID !== 'undefined' && localPlayerID !== null) { // localPlayerID is global from multiplayer.js
+        if (localPlayerID === 1) {
+            startX = 0; // Player 1 at (0,0)
+            startZ = 0;
+        } else {
+            startX = 5; // Other players at (5,0) for differentiation
+            startZ = 0;
+        }
+    } else {
+        console.warn("setLocalPlayerInitialPosition: localPlayerID not defined, defaulting to (0,0)");
+    }
+
+    player.position.set(startX, PLAYER_EYE_LEVEL, startZ); // PLAYER_EYE_LEVEL from config.js
+    console.log(`setLocalPlayerInitialPosition: Player ${localPlayerID} position set to x:${startX}, y:${PLAYER_EYE_LEVEL}, z:${startZ}`);
+}

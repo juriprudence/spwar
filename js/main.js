@@ -123,20 +123,18 @@ function init() {
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Generate maze and walls (from maze.js)
-    generateMaze();
-    createMazeWalls();
+    // Maze generation and wall creation will be handled by multiplayer logic
+    // generateMaze(); // Called by player 1 in multiplayer.js
+    // createMazeWalls(); // Called after maze data is set (either locally for player 1 or via event for others)
 
-    // Set player initial position (calculated based on maze cell 1,1)
-    const startX = 1 * 2 - MAZE_SIZE + 1; // Cell (1,1) x-coordinate
-    const startZ = 1 * 2 - MAZE_SIZE + 1; // Cell (1,1) z-coordinate
-    player.position.set(startX, PLAYER_EYE_LEVEL, startZ); // PLAYER_EYE_LEVEL from config.js
+    // Player initial position will be set by multiplayer logic after maze is ready
+    // See setLocalPlayerInitialPosition() in player.js, called from multiplayer.js
 
     // Create enemies (from enemy.js)
-    createEnemies(ENEMY_COUNT); // ENEMY_COUNT from config.js
+    // createEnemies(ENEMY_COUNT); // ENEMY_COUNT from config.js // Temporarily disabled for multiplayer debugging
 
     // Setup UI elements and controls (from ui.js)
-    setupMiniMap();
+    // setupMiniMap(); // Temporarily disabled as maze is disabled
     setupMobileControls(); // This will also fetch joystick, joystickKnob, shootButton DOM elements
 
     // Add event listeners

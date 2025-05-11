@@ -86,6 +86,44 @@ function updateBullets(delta) {
                     break; // Bullet hits one enemy
                 }
             }
+            if (!bullet.alive) continue; // Skip if bullet hit an enemy
+
+            // Check collision with other players
+            // otherPlayers is a global from multiplayer.js: playerID -> { model, lastUpdate }
+            for (const playerID in otherPlayers) {
+                if (otherPlayers.hasOwnProperty(playerID)) {
+                    const remotePlayer = otherPlayers[playerID];
+                    if (remotePlayer && remotePlayer.model) {
+                        // Simple bounding box check for now, similar to walls but using player model dimensions
+                        // Player model is approx 0.6 wide, 1.8 high, 0.6 deep.
+                        // Let's use a slightly larger threshold for player collision.
+                        const playerHitThreshold = 0.5; // Half of player width/depth + bullet radius
+                        
+                        const dx = bullet.position.x - remotePlayer.model.position.x;
+                        const dy = bullet.position.y - (remotePlayer.model.position.y + 0.9); // Center of player model (0.9 is half height)
+                        const dz = bullet.position.z - remotePlayer.model.position.z;
+
+                        if (Math.abs(dx) < playerHitThreshold &&
+                            Math.abs(dy) < (playerHitThreshold + 0.4) && // Taller threshold for Y
+                            Math.abs(dz) < playerHitThreshold) {
+                            
+                            console.log(`Bullet hit remote player ${playerID}`);
+                            
+                            // Raise event to notify other clients (and self for consistency if needed) about the hit
+                            if (photon && photon.isJoinedToRoom()) {
+                                photon.raiseEvent(4, { victimActorNr: parseInt(playerID) }); // Event code 4 for player hit
+                                console.log(`Raised event 4 (player_hit) for victimActorNr: ${playerID}`);
+                            }
+
+                            // Remove bullet
+                            bullet.alive = false;
+                            if(scene) scene.remove(bullet);
+                            bullets.splice(i, 1);
+                            break; // Bullet hits one player
+                        }
+                    }
+                }
+            }
         }
     }
 }
