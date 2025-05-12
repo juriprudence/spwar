@@ -59,7 +59,7 @@ function manageEnemySpawningBasedOnRemotePlayers() {
 function initializeMultiplayer() {
     // Protocol 0 for WS (WebSocket) since game is on http://localhost
     // Protocol 1 for WSS (Secure WebSocket)
-    photon = new Photon.LoadBalancing.LoadBalancingClient(0, "a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd", "1.0");
+    photon = new Photon.LoadBalancing.LoadBalancingClient(1, "a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd", "1.0");
     console.log("Photon client initialized with protocol 0 (WS). AppId: a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd, AppVersion: 1.0");
     
     // Set callbacks
