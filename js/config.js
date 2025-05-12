@@ -16,7 +16,7 @@ const MAX_PITCH = Math.PI / 2 - 0.01;  //radians, slightly less than +90 degrees
 
 
 // Enemies
-const ENEMY_COUNT = 3;
+const ENEMY_COUNT = 10;
 const ENEMY_HEALTH_INITIAL = 100;
 const ENEMY_MOVE_SPEED = 1.0;
 const ENEMY_ATTACK_RANGE = 1.5;
@@ -80,7 +80,9 @@ const ENEMY_TYPES = {
 const BULLET_SPEED = 20;
 const BULLET_DAMAGE = 25;
 const BULLET_LIFESPAN = 1000; // milliseconds
-const BULLET_GEOMETRY_ARGS = [0.1, 8, 8]; // radius, widthSegments, heightSegments
+// For laser: radiusTop, radiusBottom, height, radialSegments
+const BULLET_GEOMETRY_ARGS = [0.05, 0.05, 0.8, 8]; // Thin, long cylinder
+const LASER_BULLET_COLOR = 0xff0000; // Example: Red laser
 
 // Controls
 const JOYSTICK_TURN_SENSITIVITY = 2;
@@ -104,7 +106,7 @@ const FLOOR_COLOR = 0x555555;
 const WALL_COLOR = 0x8888ff;
 const ENEMY_COLOR = 0xff0000;
 const ENEMY_HEALTH_BAR_COLOR = 0x00ff00;
-const BULLET_COLOR = 0xffff00;
+const BULLET_COLOR = 0xffff00; // Original color, keep for now or deprecate if laser is permanent
 
 // Power-up Types (effects are functions, will be defined where they can access game state)
 // Note: The actual effect functions involving player state modification
@@ -136,7 +138,48 @@ const POWERUP_TYPES = {
 
 // Weapon Types (placeholder, to be defined with actual weapon properties)
 const WEAPON_TYPES = [
-    { name: "Basic Gun", damage: 25, fireRate: 0.2, projectileSpeed: 20, projectileColor: 0xffff00, level: 0 },
-    // Add more weapon types later
+    { 
+        name: "Basic Gun", 
+        damage: 25, 
+        fireRate: 0.2, 
+        projectileSpeed: 20, 
+        projectileColor: 0xffff00,
+        bulletType: "single", 
+        level: 0 
+    },
+    { 
+        name: "Spread Shot", 
+        damage: 20, 
+        fireRate: 0.3, 
+        projectileSpeed: 18, 
+        projectileColor: 0xff8800,
+        bulletType: "spread", 
+        spreadAngle: 0.2, // angle in radians
+        bulletCount: 3,
+        level: 1 
+    },
+    { 
+        name: "Laser Cannon", 
+        damage: 40, 
+        fireRate: 0.15, 
+        projectileSpeed: 30, 
+        projectileColor: 0xff0000,
+        bulletType: "laser", 
+        bulletLength: 1.2,  // longer bullet
+        piercing: true,     // can hit multiple enemies
+        level: 2 
+    },
+    { 
+        name: "Rocket Launcher", 
+        damage: 75, 
+        fireRate: 0.5, 
+        projectileSpeed: 15, 
+        projectileColor: 0x0088ff,
+        bulletType: "rocket", 
+        explosionRadius: 3,
+        level: 3 
+    }
 ];
 let currentWeaponLevel = 0; // Initial weapon level
+// Add a cooldown system for weapons
+let lastShootTime = 0;

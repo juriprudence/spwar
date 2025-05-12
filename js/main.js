@@ -70,9 +70,22 @@ function init() {
                 currentWeaponLevel++;
                 // Assuming updateWeaponDisplay is available
                 if (typeof updateWeaponDisplay === 'function') updateWeaponDisplay();
+                
+                // Reset weapon back to basic after some time (optional)
+                if (currentWeaponLevel > 0) { // Don't reset if already at basic
+                    if (window.weaponResetTimeout) {
+                        clearTimeout(window.weaponResetTimeout);
+                    }
+                    
+                    window.weaponResetTimeout = setTimeout(() => {
+                        currentWeaponLevel = 0;
+                        if (typeof updateWeaponDisplay === 'function') updateWeaponDisplay();
+                        if (typeof showNotification === 'function') showNotification("Weapon Power-up Expired!");
+                    }, 20000); // 20 seconds of upgraded weapon
+                }
             }
             if (typeof updateScoreDisplay === 'function') updateScoreDisplay(75);
-            // if (typeof showNotification === 'function') showNotification("Weapon Upgraded!");
+            if (typeof showNotification === 'function') showNotification("Weapon Upgraded to " + WEAPON_TYPES[currentWeaponLevel].name + "!");
         };
         POWERUP_TYPES.SHIELD.effect = (player) => {
             playerShieldActive = true;
@@ -172,7 +185,12 @@ function init() {
     }
     setupMobileControls(); // This will also fetch joystick, joystickKnob, shootButton DOM elements
     setupFullscreenControls(); // Add call to setup fullscreen button
-
+    
+    // Initialize weapon display
+    if (typeof updateWeaponDisplay === 'function') {
+        updateWeaponDisplay();
+    }
+    
     // Add event listeners
     window.addEventListener('resize', onWindowResize); // onWindowResize from ui.js
     document.addEventListener('keydown', onKeyDown);   // onKeyDown from player.js
@@ -236,6 +254,13 @@ function init() {
     
     // Initialize player list UI
     setupPlayerListUI();
+    
+    // Spawn an initial power-up so players can see it on the map
+    setTimeout(() => {
+        if (typeof spawnRandomPowerUp === 'function' && maze && maze.length > 0) {
+            spawnRandomPowerUp();
+        }
+    }, 3000); // Give the maze time to generate
 }
 
 function animate() {

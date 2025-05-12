@@ -37,6 +37,8 @@ function setupMiniMap() {
 
     console.log(`Minimap canvas set to: ${newWidth}x${newHeight}`);
 
+    // Create power-up legend
+    createPowerUpLegend();
 
     function updateMiniMap() {
         // Check for otherPlayers global from multiplayer.js
@@ -66,6 +68,34 @@ function setupMiniMap() {
         }
         
         const worldToGrid = (worldCoord) => (worldCoord + actualGridSize - 1) / 2;
+
+        // Draw power-ups with their respective colors
+        if (typeof powerUps !== 'undefined' && powerUps.length > 0) {
+            powerUps.forEach(powerUp => {
+                // Convert world coordinates to grid coordinates
+                const gridX = worldToGrid(powerUp.position.x);
+                const gridZ = worldToGrid(powerUp.position.z);
+                
+                // Set the color based on the power-up type
+                if (powerUp.powerUpType && typeof powerUp.powerUpType.color !== 'undefined') {
+                    // Convert the hex color to CSS color string
+                    const hexColor = '#' + powerUp.powerUpType.color.toString(16).padStart(6, '0');
+                    miniMapCanvasContext.fillStyle = hexColor;
+                } else {
+                    // Default color if type or color is not available
+                    miniMapCanvasContext.fillStyle = '#ffffff'; // White as fallback
+                }
+                
+                // Draw a diamond shape for power-ups to make them distinct
+                miniMapCanvasContext.beginPath();
+                miniMapCanvasContext.moveTo(gridX * cellSize, gridZ * cellSize - 3); // Top
+                miniMapCanvasContext.lineTo(gridX * cellSize + 3, gridZ * cellSize); // Right
+                miniMapCanvasContext.lineTo(gridX * cellSize, gridZ * cellSize + 3); // Bottom
+                miniMapCanvasContext.lineTo(gridX * cellSize - 3, gridZ * cellSize); // Left
+                miniMapCanvasContext.closePath();
+                miniMapCanvasContext.fill();
+            });
+        }
 
         miniMapCanvasContext.fillStyle = 'red';
         enemies.forEach(enemy => {
@@ -113,6 +143,114 @@ function setupMiniMap() {
     updateMiniMap();
 }
 
+// Create a legend for power-ups to show what each color represents
+function createPowerUpLegend() {
+    // Check if legend already exists
+    let legendContainer = document.getElementById('powerUpLegend');
+    if (legendContainer) {
+        return; // Legend already exists
+    }
+    
+    // Make sure UI container exists
+    let uiContainer = document.querySelector('.ui-container');
+    if (!uiContainer) {
+        // Create the UI container if it doesn't exist (same as in createWeaponInfoDisplay)
+        uiContainer = document.createElement('div');
+        uiContainer.className = 'ui-container';
+        document.body.appendChild(uiContainer);
+        
+        // Add basic styles for the UI container if not already added
+        if (!document.querySelector('style[data-for="ui-container"]')) {
+            const containerStyle = document.createElement('style');
+            containerStyle.setAttribute('data-for', 'ui-container');
+            containerStyle.textContent = `
+                .ui-container {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 100;
+                }
+                .ui-container > * {
+                    pointer-events: auto;
+                }
+            `;
+            document.head.appendChild(containerStyle);
+        }
+    }
+    
+    // Create legend container
+    legendContainer = document.createElement('div');
+    legendContainer.id = 'powerUpLegend';
+    legendContainer.className = 'power-up-legend';
+    
+    // Add title
+    const title = document.createElement('div');
+    title.className = 'legend-title';
+    title.textContent = 'Power-Ups';
+    legendContainer.appendChild(title);
+    
+    // Add legend items
+    if (typeof POWERUP_TYPES !== 'undefined') {
+        for (const type in POWERUP_TYPES) {
+            const powerUpType = POWERUP_TYPES[type];
+            
+            const legendItem = document.createElement('div');
+            legendItem.className = 'legend-item';
+            
+            const colorBox = document.createElement('div');
+            colorBox.className = 'color-box';
+            colorBox.style.backgroundColor = '#' + powerUpType.color.toString(16).padStart(6, '0');
+            
+            const label = document.createElement('span');
+            label.textContent = powerUpType.name;
+            
+            legendItem.appendChild(colorBox);
+            legendItem.appendChild(label);
+            legendContainer.appendChild(legendItem);
+        }
+    }
+    
+    // Add to UI container
+    uiContainer.appendChild(legendContainer);
+    
+    // Add styles for legend
+    const style = document.createElement('style');
+    style.textContent = `
+        .power-up-legend {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 5px;
+            padding: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 150;
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+        .color-box {
+            width: 10px;
+            height: 10px;
+            margin-right: 5px;
+            border-radius: 2px;
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 function setupMobileControls() {
     joystick = document.getElementById('joystick'); // joystick is global in main.js
@@ -452,4 +590,144 @@ function setupPlayerListUI() {
     } else {
         console.warn("playerList element not found in HTML for setupPlayerListUI");
     }
+}
+
+// Function to update the weapon display
+function updateWeaponDisplay() {
+    const weaponInfo = document.getElementById('weaponInfo');
+    if (!weaponInfo) {
+        // Create the weapon info display if it doesn't exist
+        createWeaponInfoDisplay();
+        return updateWeaponDisplay(); // Call again after creating
+    }
+    
+    const currentWeapon = WEAPON_TYPES[currentWeaponLevel];
+    weaponInfo.innerHTML = `
+        <div class="weapon-name">${currentWeapon.name}</div>
+        <div class="weapon-stats">
+            <span>DMG: ${currentWeapon.damage}</span>
+            <span>ROF: ${Math.round(1/currentWeapon.fireRate)}/s</span>
+        </div>
+    `;
+    
+    // Apply color based on weapon type
+    weaponInfo.style.borderColor = '#' + currentWeapon.projectileColor.toString(16).padStart(6, '0');
+}
+
+// Create the weapon info display
+function createWeaponInfoDisplay() {
+    let uiContainer = document.querySelector('.ui-container');
+    
+    // Create the UI container if it doesn't exist
+    if (!uiContainer) {
+        console.log("UI container not found, creating one");
+        uiContainer = document.createElement('div');
+        uiContainer.className = 'ui-container';
+        document.body.appendChild(uiContainer);
+        
+        // Add basic styles for the UI container
+        const containerStyle = document.createElement('style');
+        containerStyle.textContent = `
+            .ui-container {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 100;
+            }
+            .ui-container > * {
+                pointer-events: auto;
+            }
+        `;
+        document.head.appendChild(containerStyle);
+    }
+    
+    const weaponInfo = document.createElement('div');
+    weaponInfo.id = 'weaponInfo';
+    weaponInfo.className = 'weapon-info';
+    uiContainer.appendChild(weaponInfo);
+    
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .weapon-info {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+            border-left: 4px solid #ffff00;
+            pointer-events: none;
+        }
+        .weapon-name {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .weapon-stats {
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .weapon-stats span {
+            margin-right: 10px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Function to show notifications
+function showNotification(message, duration = 3000) {
+    let notificationContainer = document.getElementById('notificationContainer');
+    if (!notificationContainer) {
+        // Create container if it doesn't exist
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notificationContainer';
+        notificationContainer.style.position = 'absolute';
+        notificationContainer.style.top = '60px';
+        notificationContainer.style.left = '50%';
+        notificationContainer.style.transform = 'translateX(-50%)';
+        notificationContainer.style.zIndex = '1000';
+        document.body.appendChild(notificationContainer);
+    }
+
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerHTML = message;
+    notification.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    notification.style.color = 'white';
+    notification.style.padding = '8px 16px';
+    notification.style.borderRadius = '4px';
+    notification.style.marginBottom = '8px';
+    notification.style.textAlign = 'center';
+    notification.style.animation = 'fadeInOut 3s forwards';
+    
+    // Add animation styles if not already present
+    if (!document.getElementById('notificationStyles')) {
+        const style = document.createElement('style');
+        style.id = 'notificationStyles';
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateY(-20px); }
+                10% { opacity: 1; transform: translateY(0); }
+                80% { opacity: 1; }
+                100% { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    notificationContainer.appendChild(notification);
+    
+    // Remove notification after duration
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, duration);
 }
