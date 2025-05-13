@@ -11,6 +11,9 @@ function updatePlayer(delta) {
         return; // Stop updating if player is dead
     }
 
+    // Store previous position to detect actual movement
+    const previousPosition = player.position.clone();
+
     // Calculate velocity based on keys or joystick
     playerVelocity.x = 0; // playerVelocity is global in main.js
     playerVelocity.z = 0;
@@ -64,6 +67,30 @@ function updatePlayer(delta) {
 
     if (!collision) {
         player.position.addScaledVector(direction, delta);
+    }
+
+    // Create dust effect for local player if moving
+    if (!collision && (Math.abs(playerVelocity.x) > 0.01 || Math.abs(playerVelocity.z) > 0.01)) {
+        // Calculate the actual distance the player has moved
+        const movementDistance = previousPosition.distanceTo(player.position);
+        
+        if (movementDistance > 0.05) {
+            // Throttle dust effect creation using a timer
+            const currentTime = Date.now();
+            if (!window.lastLocalPlayerDustTime || currentTime - window.lastLocalPlayerDustTime > 200) { // Emit dust every 200ms while moving
+                window.lastLocalPlayerDustTime = currentTime;
+                // Create dust particles at player's feet
+                if (typeof createPlayerMovementDust === 'function') {
+                    // Position dust at player's feet (below camera position)
+                    const dustPosition = player.position.clone();
+                    dustPosition.y = 0; // Ground level
+                    // Use the player's color if available, otherwise use default tan color
+                    const dustColor = (typeof localPlayerColor !== 'undefined' && localPlayerColor !== null) ? 
+                        localPlayerColor : 0xd2b48c;
+                    createPlayerMovementDust(dustPosition, dustColor);
+                }
+            }
+        }
     }
 
     // Update health bar (This might move to ui.js if health bar is managed there)

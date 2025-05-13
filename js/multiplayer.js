@@ -165,7 +165,8 @@ function loadRemotePlayerModel(playerID, color) {
         targetPosition: null,
         targetRotationY: null,
         isMoving: false,
-        firstPositionUpdate: true // Flag to indicate we need to snap to position on first update
+        firstPositionUpdate: true, // Flag to indicate we need to snap to position on first update
+        color: color
     };
     
     // Immediately manage enemies when we start loading a player model
@@ -396,8 +397,6 @@ function onEvent(code, content, actorNr) {
                 console.warn("onEvent: Received event 4 (player_hit) but content or victimActorNr is missing.");
             }
             break;
-            handleRemotePlayerShoot(content);
-            break;
     }
 }
 
@@ -490,6 +489,20 @@ function handleRemotePlayerShoot(data) {
     bullet.velocity = direction.multiplyScalar(BULLET_SPEED);
     bullet.alive = true;
     
+    // Create muzzle flash at the gun position
+    if (typeof createMuzzleFlashParticles === 'function') {
+        createMuzzleFlashParticles(
+            new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+            direction,
+            BULLET_COLOR
+        );
+    }
+    
+    // Add particle trail to the bullet
+    if (typeof createBulletTrailParticles === 'function') {
+        createBulletTrailParticles(bullet, BULLET_COLOR);
+    }
+    
     // Add to scene
     scene.add(bullet);
     bullets.push(bullet);
@@ -527,6 +540,9 @@ function updateOtherPlayers(delta) {
             continue;
         }
         
+        // Track old position to detect actual movement
+        const oldPosition = playerObj.model.position.clone();
+        
         // Smoothly interpolate to target position/rotation if exists
         if (playerObj.targetPosition) {
             // Only lerp X and Z, keep Y at the fixed value to maintain correct height
@@ -550,10 +566,30 @@ function updateOtherPlayers(delta) {
             const modelPos = new THREE.Vector3(playerObj.model.position.x, 0, playerObj.model.position.z);
             const targetPos = new THREE.Vector3(playerObj.targetPosition.x, 0, playerObj.targetPosition.z);
             
+            const wasMoving = playerObj.isMoving;
+            
             if (modelPos.distanceToSquared(targetPos) < 0.01) {
                 playerObj.isMoving = false; // Close enough to target, consider stopped
             } else {
                 playerObj.isMoving = true; // Still moving towards target
+            }
+            
+            // Calculate the actual distance the player has moved since last frame
+            const movementDistance = oldPosition.distanceTo(playerObj.model.position);
+            
+            // Create dust effect when player is moving (and actually changed position)
+            if (playerObj.isMoving && movementDistance > 0.05) {
+                // Throttle dust effect based on last emission time
+                const currentTime = now;
+                if (!playerObj.lastDustTime || currentTime - playerObj.lastDustTime > 200) { // Emit dust every 200ms while moving
+                    playerObj.lastDustTime = currentTime;
+                    // Call dust particle function if available
+                    if (typeof createPlayerMovementDust === 'function') {
+                        // Use the player's color for dust if it exists
+                        const playerColor = playerObj.color || 0xd2b48c;
+                        createPlayerMovementDust(playerObj.model.position, playerColor);
+                    }
+                }
             }
         }
         

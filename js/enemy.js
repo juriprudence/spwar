@@ -259,14 +259,28 @@ function moveEnemy(enemy, direction, delta) {
     
     enemy.position.copy(originalPosition).add(allowedMove);
     
-    if (enemy.enemyType !== 'RANGED' && allowedMove.lengthSq() > 0.0001) {
-        const lookTargetPos = new THREE.Vector3().addVectors(enemy.position, allowedMove);
-        if (enemy.enemyType === 'FAST' && enemy.children.length > 0 && enemy.children[0] instanceof THREE.Mesh) {
-            // Fast enemy (cone) should point its tip. Its local Z is forward.
-            // We need to rotate the parent group.
-             enemy.lookAt(lookTargetPos);
-        } else if (enemy.enemyType !== 'FAST') {
-             enemy.lookAt(lookTargetPos);
+    // Add dust effect if enemy actually moved
+    if (allowedMove.lengthSq() > 0.001) {
+        // Throttle dust effect creation using a timer
+        const currentTime = Date.now();
+        if (!enemy.lastDustTime || currentTime - enemy.lastDustTime > 300) { // Longer interval for enemies (300ms)
+            enemy.lastDustTime = currentTime;
+            // Create dust particles at enemy's feet if the function exists
+            if (typeof createEnemyMovementDust === 'function') {
+                createEnemyMovementDust(enemy.position);
+            }
+        }
+        
+        // Handle enemy rotation based on movement direction
+        if (enemy.enemyType !== 'RANGED') {
+            const lookTargetPos = new THREE.Vector3().addVectors(enemy.position, allowedMove);
+            if (enemy.enemyType === 'FAST' && enemy.children.length > 0 && enemy.children[0] instanceof THREE.Mesh) {
+                // Fast enemy (cone) should point its tip. Its local Z is forward.
+                // We need to rotate the parent group.
+                enemy.lookAt(lookTargetPos);
+            } else if (enemy.enemyType !== 'FAST') {
+                enemy.lookAt(lookTargetPos);
+            }
         }
     }
 }

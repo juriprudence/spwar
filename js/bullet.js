@@ -1,5 +1,201 @@
 // Bullet related logic
 
+// Particle system for bullets
+function createBulletTrailParticles(bullet, color) {
+    // Create a simple particle system for the bullet trail
+    const particleCount = 15;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles in a small area behind the bullet
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = 0;
+        particlePositions[i * 3 + 1] = 0;
+        particlePositions[i * 3 + 2] = 0;
+        particleSizes[i] = Math.random() * 0.05 + 0.02; // Random sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    // Create a texture for particles if desired
+    // const particleTexture = new THREE.TextureLoader().load('texture/particle.png');
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: color || 0xffffff,
+        size: 0.1,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        // map: particleTexture, // Uncomment if using a texture
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    bullet.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        initialPositions: particlePositions.slice(),
+        lifetimes: new Float32Array(particleCount),
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.8 + 0.2; // Random lifetime between 0.2 and 1.0
+        
+        // Create a slightly randomized velocity opposite to bullet direction
+        const velocity = bullet.velocity ? bullet.velocity.clone().negate().multiplyScalar(Math.random() * 0.1) : new THREE.Vector3(0, 0, 0);
+        // Add some random spread
+        velocity.x += (Math.random() - 0.5) * 0.1;
+        velocity.y += (Math.random() - 0.5) * 0.1;
+        velocity.z += (Math.random() - 0.5) * 0.1;
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
+    return particles;
+}
+
+// Function to create muzzle flash particles at the gun position
+function createMuzzleFlashParticles(position, direction, color) {
+    const particleCount = 10;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles in a small cone in the direction of shooting
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = position.x;
+        particlePositions[i * 3 + 1] = position.y;
+        particlePositions[i * 3 + 2] = position.z;
+        particleSizes[i] = Math.random() * 0.15 + 0.05; // Random sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: color || 0xffaa33,
+        size: 0.2,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        lifetimes: new Float32Array(particleCount),
+        maxLifetime: 0.2, // Shorter lifetime for muzzle flash
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.2; // Random lifetime
+        
+        // Create a velocity in the shooting direction with random spread
+        const velocity = direction.clone().multiplyScalar(Math.random() * 2);
+        // Add some random spread
+        velocity.x += (Math.random() - 0.5) * 0.5;
+        velocity.y += (Math.random() - 0.5) * 0.5;
+        velocity.z += (Math.random() - 0.5) * 0.5;
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
+    // Remove after lifetime
+    setTimeout(() => {
+        scene.remove(particles);
+    }, 200); // 200ms
+    
+    return particles;
+}
+
+// Update function for particles - call this in the animation loop
+function updateParticles(delta) {
+    // Update bullet trail particles
+    for (let i = 0; i < bullets.length; i++) {
+        const bullet = bullets[i];
+        if (!bullet.alive) continue;
+        
+        bullet.children.forEach(child => {
+            if (child instanceof THREE.Points && child.userData.positions) {
+                const positions = child.userData.positions;
+                const lifetimes = child.userData.lifetimes;
+                const velocities = child.userData.velocities;
+                
+                for (let j = 0; j < lifetimes.length; j++) {
+                    // Reduce lifetime
+                    lifetimes[j] -= delta;
+                    
+                    // If particle is dead, reset it to the bullet's position
+                    if (lifetimes[j] <= 0) {
+                        positions[j * 3] = 0;
+                        positions[j * 3 + 1] = 0;
+                        positions[j * 3 + 2] = 0;
+                        lifetimes[j] = Math.random() * 0.8 + 0.2; // Reset lifetime
+                    } else {
+                        // Move particle according to its velocity
+                        positions[j * 3] += velocities[j].x * delta;
+                        positions[j * 3 + 1] += velocities[j].y * delta;
+                        positions[j * 3 + 2] += velocities[j].z * delta;
+                    }
+                }
+                
+                // Update the geometry
+                child.geometry.attributes.position.needsUpdate = true;
+            }
+        });
+    }
+    
+    // Update any standalone particle systems (like muzzle flashes)
+    scene.children.forEach(child => {
+        if (child instanceof THREE.Points && child.userData.maxLifetime) {
+            const positions = child.userData.positions;
+            const lifetimes = child.userData.lifetimes;
+            const velocities = child.userData.velocities;
+            let allDead = true;
+            
+            for (let j = 0; j < lifetimes.length; j++) {
+                // Reduce lifetime
+                lifetimes[j] -= delta;
+                
+                if (lifetimes[j] > 0) {
+                    allDead = false;
+                    
+                    // Move particle according to its velocity
+                    positions[j * 3] += velocities[j].x * delta;
+                    positions[j * 3 + 1] += velocities[j].y * delta;
+                    positions[j * 3 + 2] += velocities[j].z * delta;
+                    
+                    // Fade out based on lifetime
+                    const fadeRatio = lifetimes[j] / child.userData.maxLifetime;
+                    child.material.opacity = fadeRatio * 0.8;
+                }
+            }
+            
+            // Update the geometry
+            child.geometry.attributes.position.needsUpdate = true;
+            
+            // If all particles are dead, remove the system
+            if (allDead) {
+                scene.remove(child);
+            }
+        }
+    });
+}
+
 function shoot() {
     if (!player) return; // player is global in main.js
 
@@ -17,6 +213,11 @@ function shoot() {
     // Get direction player is facing
     const shootDirection = new THREE.Vector3();
     player.getWorldDirection(shootDirection);
+    
+    // Create muzzle flash at the gun position
+    const muzzlePosition = player.position.clone();
+    muzzlePosition.y += 0.5; // Adjust to gun height
+    createMuzzleFlashParticles(muzzlePosition, shootDirection, currentWeapon.projectileColor);
     
     // Play sound based on weapon type
     if (typeof playSound === 'function') {
@@ -53,6 +254,9 @@ function createBasicShot(weapon, direction) {
     bullet.alive = true;
     bullet.damage = weapon.damage;
     bullet.piercing = weapon.piercing || false;
+    
+    // Add particle trail to the bullet
+    createBulletTrailParticles(bullet, weapon.projectileColor);
     
     // Add to scene
     scene.add(bullet);
@@ -100,6 +304,9 @@ function createSpreadShot(weapon, direction) {
         bullet.alive = true;
         bullet.damage = weapon.damage;
         
+        // Add particle trail to the bullet
+        createBulletTrailParticles(bullet, weapon.projectileColor);
+        
         // Add to scene
         scene.add(bullet);
         bullets.push(bullet);
@@ -141,6 +348,12 @@ function createLaserShot(weapon, direction) {
     bullet.damage = weapon.damage;
     bullet.piercing = true; // Lasers always pierce
 
+    // Add a glowing particle trail for the laser - smaller and more focused
+    const trailParticles = createBulletTrailParticles(bullet, weapon.projectileColor);
+    // Adjust trail particles for laser
+    trailParticles.material.size = 0.08;
+    trailParticles.material.opacity = 0.9;
+
     // Add to scene
     scene.add(bullet);
     bullets.push(bullet);
@@ -177,6 +390,21 @@ function createRocketShot(weapon, direction) {
     
     // Set up the rocket's orientation to match its direction
     bullet.lookAt(bullet.position.clone().add(direction));
+
+    // Add rocket trail particles - make it look like exhaust
+    const trailParticles = createBulletTrailParticles(bullet, 0xff5500); // Orange-red for rocket exhaust
+    // Customize the rocket trail
+    trailParticles.material.size = 0.15;
+    trailParticles.material.opacity = 0.8;
+    // Override the velocities to be more like exhaust
+    for (let i = 0; i < trailParticles.userData.velocities.length; i++) {
+        // Stronger backward velocity for rocket exhaust effect
+        trailParticles.userData.velocities[i] = bullet.velocity.clone().negate().multiplyScalar(Math.random() * 0.3 + 0.1);
+        // Less spread for a more focused exhaust
+        trailParticles.userData.velocities[i].x += (Math.random() - 0.5) * 0.05;
+        trailParticles.userData.velocities[i].y += (Math.random() - 0.5) * 0.05;
+        trailParticles.userData.velocities[i].z += (Math.random() - 0.5) * 0.05;
+    }
 
     // Add to scene
     scene.add(bullet);
@@ -215,6 +443,15 @@ function updateBullets(delta) {
                     Math.abs(dy) < BULLET_WALL_COLLISION_THRESHOLD && // Check Y as well
                     Math.abs(dz) < BULLET_WALL_COLLISION_THRESHOLD) {
                     
+                    // Create impact particles at collision point
+                    if (typeof createBulletImpactParticles === 'function') {
+                        // Get bullet color from the material if available
+                        const bulletColor = bullet.material && bullet.material.color ? 
+                            bullet.material.color.getHex() : 0xff9933;
+                        
+                        createBulletImpactParticles(bullet.position.clone(), bulletColor);
+                    }
+                    
                     // Handle rocket explosion on wall
                     if (bullet.isRocket) {
                         createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
@@ -239,6 +476,15 @@ function updateBullets(delta) {
 
                 if (distanceSquared < radiiSumSquared) {
                     hitEnemy = true;
+                    
+                    // Create impact particles at collision point
+                    if (typeof createBulletImpactParticles === 'function') {
+                        // Get bullet color from the material if available
+                        const bulletColor = bullet.material && bullet.material.color ? 
+                            bullet.material.color.getHex() : 0xff9933;
+                        
+                        createBulletImpactParticles(bullet.position.clone(), bulletColor);
+                    }
                     
                     // Handle rocket explosion
                     if (bullet.isRocket) {
@@ -293,6 +539,15 @@ function updateBullets(delta) {
                             Math.abs(dy) < (playerHitThreshold + 0.4) && // Taller threshold for Y
                             Math.abs(dz) < playerHitThreshold) {
                             
+                            // Create impact particles at collision point
+                            if (typeof createBulletImpactParticles === 'function') {
+                                // Get bullet color from the material if available
+                                const bulletColor = bullet.material && bullet.material.color ? 
+                                    bullet.material.color.getHex() : 0xff9933;
+                                
+                                createBulletImpactParticles(bullet.position.clone(), bulletColor);
+                            }
+                            
                             if (bullet.isRocket) {
                                 createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
                             }
@@ -333,6 +588,58 @@ function createExplosion(position, radius, damage) {
     explosion.position.copy(position);
     scene.add(explosion);
     
+    // Create explosion particles
+    const particleCount = 40;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles at explosion center
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = position.x;
+        particlePositions[i * 3 + 1] = position.y;
+        particlePositions[i * 3 + 2] = position.z;
+        particleSizes[i] = Math.random() * 0.2 + 0.05; // Random sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: 0xff3300,
+        size: 0.2,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        lifetimes: new Float32Array(particleCount),
+        maxLifetime: 0.8, // Explosion particle lifetime
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.8; // Random lifetime
+        
+        // Create a velocity in random direction
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5
+        );
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
     // Animate explosion size
     const expansionSpeed = 20;
     let size = 0.1;
@@ -347,6 +654,11 @@ function createExplosion(position, radius, damage) {
         explosion.scale.set(size, size, size);
         explosion.material.opacity = 0.8 * (1 - size/maxSize);
     }, 33); // ~30fps
+    
+    // Remove particles after lifetime
+    setTimeout(() => {
+        scene.remove(particles);
+    }, 800); // 800ms
     
     // Check for enemies in explosion radius
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -376,6 +688,202 @@ function createExplosion(position, radius, damage) {
     }
     
     // Check for player damage - would need to implement for multiplayer
+}
+
+// Function to create dust particles when player moves
+function createPlayerMovementDust(playerPosition, color) {
+    const particleCount = 8;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles around the player's feet
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = playerPosition.x + (Math.random() - 0.5) * 0.3;
+        particlePositions[i * 3 + 1] = 0.1; // Just above the ground
+        particlePositions[i * 3 + 2] = playerPosition.z + (Math.random() - 0.5) * 0.3;
+        particleSizes[i] = Math.random() * 0.08 + 0.02; // Random sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: color || 0xd2b48c, // Tan/dust color
+        size: 0.1,
+        transparent: true,
+        opacity: 0.4,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        lifetimes: new Float32Array(particleCount),
+        maxLifetime: 0.5, // Dust lifetime
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.5; // Random lifetime up to 0.5s
+        
+        // Create a random velocity for the dust particles
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.3, // Random X
+            Math.random() * 0.5,         // Up
+            (Math.random() - 0.5) * 0.3  // Random Z
+        );
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
+    // Remove after lifetime
+    setTimeout(() => {
+        scene.remove(particles);
+    }, 500); // 500ms
+    
+    return particles;
+}
+
+// Function to create dust particles for enemy movement (smaller and white)
+function createEnemyMovementDust(enemyPosition) {
+    const particleCount = 5; // Fewer particles
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles around the enemy's feet
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = enemyPosition.x + (Math.random() - 0.5) * 0.2; // Smaller spread
+        particlePositions[i * 3 + 1] = 0.05; // Lower to the ground
+        particlePositions[i * 3 + 2] = enemyPosition.z + (Math.random() - 0.5) * 0.2; // Smaller spread
+        particleSizes[i] = Math.random() * 0.05 + 0.01; // Smaller sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: 0xffffff, // White color
+        size: 0.05, // Smaller size
+        transparent: true,
+        opacity: 0.3, // More transparent
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        lifetimes: new Float32Array(particleCount),
+        maxLifetime: 0.3, // Shorter lifetime
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.3; // Random shorter lifetime
+        
+        // Create a random velocity for the dust particles
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.2, // Smaller X spread
+            Math.random() * 0.3,         // Less height
+            (Math.random() - 0.5) * 0.2  // Smaller Z spread
+        );
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
+    // Remove after lifetime
+    setTimeout(() => {
+        scene.remove(particles);
+    }, 300); // 300ms - shorter duration
+    
+    return particles;
+}
+
+// Create impact particles when bullet hits something
+function createBulletImpactParticles(position, color) {
+    const particleCount = 12;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
+    
+    // Initialize particles at impact point
+    for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = position.x;
+        particlePositions[i * 3 + 1] = position.y;
+        particlePositions[i * 3 + 2] = position.z;
+        particleSizes[i] = Math.random() * 0.07 + 0.03; // Random sizes
+    }
+    
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+        color: color || 0xff9933, // Orange-yellow by default
+        size: 0.1,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    
+    // Store particle data for animation
+    particles.userData = {
+        positions: particlePositions,
+        lifetimes: new Float32Array(particleCount),
+        maxLifetime: 0.4, // Short lifetime
+        velocities: []
+    };
+    
+    // Initialize lifetimes and velocities for each particle
+    for (let i = 0; i < particleCount; i++) {
+        particles.userData.lifetimes[i] = Math.random() * 0.4; // Random lifetime up to 0.4s
+        
+        // Create a velocity in random direction (spherical spread from impact point)
+        const theta = Math.random() * Math.PI * 2; // Random angle around y-axis
+        const phi = Math.random() * Math.PI; // Random angle from y-axis
+        const speed = Math.random() * 2 + 1; // Random speed
+        
+        const velocity = new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed,
+            Math.sin(phi) * Math.sin(theta) * speed,
+            Math.cos(phi) * speed
+        );
+        
+        particles.userData.velocities.push(velocity);
+    }
+    
+    // Remove after lifetime
+    setTimeout(() => {
+        scene.remove(particles);
+    }, 400); // 400ms
+    
+    return particles;
+}
+
+// Export the update function for main.js animation loop
+if (typeof window !== 'undefined') {
+    window.updateBullets = updateBullets;
+    window.updateParticles = updateParticles;
+    window.createPlayerMovementDust = createPlayerMovementDust;
+    window.createEnemyMovementDust = createEnemyMovementDust;
+    window.createBulletImpactParticles = createBulletImpactParticles;
 }
 
 // The 'click' event listener for shooting might be added in main.js or ui.js

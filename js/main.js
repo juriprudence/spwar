@@ -271,6 +271,7 @@ function animate() {
     // Update game elements
     updatePlayer(delta);  // from player.js
     updateBullets(delta); // from bullet.js
+    updateParticles(delta); // from bullet.js - particle system for bullet trails
     updateEnemies(delta); // from enemy.js
     updatePowerUps(delta); // from powerups.js
     powerUpSpawnTimer += delta; // Increment global timer used by powerups.js for bobbing
