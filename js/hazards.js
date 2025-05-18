@@ -10,13 +10,16 @@
         return;
     }
 
+    // Detect mobile devices
+    window.isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     const HAZARD_TYPES = {
         LAVA: {
             name: 'Lava',
             baseColor: new THREE.Vector3(1.0, 0.3, 0.1),
             glowColor: new THREE.Vector3(1.0, 0.6, 0.0),
-            flowSpeed: 0.2,
-            noiseScale: 3.0,
+            flowSpeed: window.isMobileDevice ? 0.1 : 0.2, // Reduced flow speed on mobile
+            noiseScale: window.isMobileDevice ? 2.0 : 3.0, // Reduced noise scale on mobile
             damage: 100, // Instant death
             yLevel: 0.2 // Height of the lava
         },
@@ -24,8 +27,8 @@
             name: 'Acid',
             baseColor: new THREE.Vector3(0.3, 1.0, 0.0),
             glowColor: new THREE.Vector3(0.6, 1.0, 0.2),
-            flowSpeed: 0.5,
-            noiseScale: 4.0,
+            flowSpeed: window.isMobileDevice ? 0.25 : 0.5, // Reduced flow speed on mobile
+            noiseScale: window.isMobileDevice ? 2.0 : 4.0, // Reduced noise scale on mobile
             damage: 100, // Instant death
             yLevel: 0.15 // Height of the acid
         }
@@ -331,8 +334,9 @@
             side: THREE.DoubleSide
         });
 
-        // Create hazard mesh
-        const geometry = new THREE.BoxGeometry(size.x, hazardData.yLevel, size.z, 32, 8, 32);
+        // Create hazard mesh with reduced complexity on mobile
+        const segments = window.isMobileDevice ? { x: 8, y: 2, z: 8 } : { x: 16, y: 4, z: 16 };
+        const geometry = new THREE.BoxGeometry(size.x, hazardData.yLevel, size.z, segments.x, segments.y, segments.z);
         const hazard = new THREE.Mesh(geometry, shaderMaterial);
         
         hazard.position.copy(position);
@@ -340,8 +344,8 @@
         hazard.hazardType = type;
         hazard.damage = hazardData.damage;
         
-        // Create glow post-processing effect for lava
-        if (type === 'LAVA') {
+        // Create simplified effects for mobile
+        if (type === 'LAVA' && !window.isMobileDevice) {
             // Add a simple glow plane beneath for extra light emission
             const glowGeometry = new THREE.PlaneGeometry(size.x * 1.05, size.z * 1.05);
             const glowMaterial = new THREE.MeshBasicMaterial({
@@ -357,11 +361,24 @@
             glowPlane.rotation.x = -Math.PI / 2;
             glowPlane.position.y = 0.02; // Just above ground
             hazard.add(glowPlane);
+        } else if (type === 'LAVA' && window.isMobileDevice) {
+            // Simplified glow for mobile
+            const glowGeometry = new THREE.PlaneGeometry(size.x, size.z);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff3300,
+                transparent: true,
+                opacity: 0.1,
+                blending: THREE.AdditiveBlending
+            });
+            const glowPlane = new THREE.Mesh(glowGeometry, glowMaterial);
+            glowPlane.rotation.x = -Math.PI / 2;
+            glowPlane.position.y = 0.01;
+            hazard.add(glowPlane);
         }
         
-        // Add some extra effects for acid type
-        if (type === 'ACID') {
-            // Add a subtle fog effect above acid
+        // Add simplified effects for acid type
+        if (type === 'ACID' && !window.isMobileDevice) {
+            // Full acid fog effect for desktop
             const fogGeometry = new THREE.PlaneGeometry(size.x, size.z, 1, 1);
             const fogMaterial = new THREE.MeshBasicMaterial({
                 color: 0x88ff44,
@@ -376,11 +393,26 @@
             for (let i = 0; i < 3; i++) {
                 const fogPlane = new THREE.Mesh(fogGeometry, fogMaterial.clone());
                 fogPlane.rotation.x = -Math.PI / 2;
-                fogPlane.position.y = hazardData.yLevel + 0.3 + i * 0.2; // Increased base height and spacing
-                fogPlane.material.opacity = 0.07 - (i * 0.02); // Less opacity for higher layers
-                fogPlane.material.emissiveIntensity = 1.5 - (i * 0.3); // Less glow for higher layers
+                fogPlane.position.y = hazardData.yLevel + 0.3 + i * 0.2;
+                fogPlane.material.opacity = 0.07 - (i * 0.02);
+                fogPlane.material.emissiveIntensity = 1.5 - (i * 0.3);
                 hazard.add(fogPlane);
             }
+        } else if (type === 'ACID' && window.isMobileDevice) {
+            // Single layer fog effect for mobile
+            const fogGeometry = new THREE.PlaneGeometry(size.x, size.z, 1, 1);
+            const fogMaterial = new THREE.MeshBasicMaterial({
+                color: 0x88ff44,
+                transparent: true,
+                opacity: 0.08,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+            
+            const fogPlane = new THREE.Mesh(fogGeometry, fogMaterial);
+            fogPlane.rotation.x = -Math.PI / 2;
+            fogPlane.position.y = hazardData.yLevel + 0.3;
+            hazard.add(fogPlane);
         }
 
         scene.add(hazard);
@@ -391,7 +423,13 @@
 
     function updateHazardEffects(delta) {
         // Update shader uniforms for all hazard zones
-        const time = performance.now() * 0.001; // Current time in seconds
+        // Slow down the time factor for mobile
+        const time = performance.now() * 0.005; // Reduced from 0.01 for better performance
+        
+        // Only update every other frame on mobile devices
+        if (window.isMobileDevice && Math.floor(time * 2) % 2 === 0) {
+            return;
+        }
         
         hazardZones.forEach(hazard => {
             if (hazard.material && hazard.material.uniforms) {
@@ -400,22 +438,26 @@
             
             // Update any additional effects
             if (hazard.hazardType === 'ACID') {
-                // Update fog plane positions for bubbling effect
-                hazard.children.forEach((child, index) => {
-                    if (child instanceof THREE.Mesh && child.material.opacity < 0.2) {
-                        child.position.y = HAZARD_TYPES.ACID.yLevel + 0.1 + index * 0.15 + 
-                                           Math.sin(time * 1.0 + index) * 0.05;
-                    }
-                });
+                // Reduce number of updates for fog planes on mobile
+                if (!window.isMobileDevice || Math.floor(time) % 2 === 0) {
+                    hazard.children.forEach((child, index) => {
+                        if (child instanceof THREE.Mesh && child.material.opacity < 0.2) {
+                            child.position.y = HAZARD_TYPES.ACID.yLevel + 0.1 + index * 0.15 + 
+                                           Math.sin(time * 0.5 + index) * 0.05; // Reduced animation speed
+                        }
+                    });
+                }
             }
             
-            // Add pulsing for lava glow
+            // Add pulsing for lava glow with reduced frequency
             if (hazard.hazardType === 'LAVA') {
-                hazard.children.forEach(child => {
-                    if (child instanceof THREE.Mesh && child.material.opacity < 0.2) {
-                        child.material.opacity = 0.1 + Math.sin(time * 2.0) * 0.05;
-                    }
-                });
+                if (!window.isMobileDevice || Math.floor(time) % 2 === 0) {
+                    hazard.children.forEach(child => {
+                        if (child instanceof THREE.Mesh && child.material.opacity < 0.2) {
+                            child.material.opacity = 0.1 + Math.sin(time) * 0.05; // Reduced frequency
+                        }
+                    });
+                }
             }
         });
     }

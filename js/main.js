@@ -78,26 +78,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function init() {
     playerHealth = PLAYER_HEALTH_INITIAL; // From config.js
     
-    // Initialize audio system on first user interaction
-    function initAudioOnInteraction() {
-        if (typeof initAudio === 'function') {
-            initAudio();
-            updateLoadingProgress('Audio system initialized');
-            // Remove the event listeners once audio is initialized
-            document.removeEventListener('click', initAudioOnInteraction);
-            document.removeEventListener('touchstart', initAudioOnInteraction);
-            document.removeEventListener('keydown', initAudioOnInteraction);
-        }
+    // Initialize audio system immediately without waiting for interaction
+    if (typeof initAudio === 'function') {
+        initAudio().catch(err => console.warn('Audio initialization failed:', err));
+        updateLoadingProgress('Audio system initialized');
     }
-    
-    // Add event listeners for user interaction
-    document.addEventListener('click', initAudioOnInteraction);
-    document.addEventListener('touchstart', initAudioOnInteraction);
-    document.addEventListener('keydown', initAudioOnInteraction);
     
     currentPlayerSpeed = PLAYER_SPEED; // Initialize current speed from config
     powerUpSpawnTimer = 0; // Initialize power-up spawn timer
-    isPlayerDead = false; // Reset player death state on init
+    isPlayerDead = false;
 
     // Define and assign effect functions to POWERUP_TYPES
     // This needs to be done after POWERUP_TYPES is loaded from config.js

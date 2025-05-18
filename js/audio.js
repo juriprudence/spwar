@@ -14,27 +14,35 @@ const MOVEMENT_TIMEOUT = 100; // Time in ms to wait before stopping walking soun
 // Initialize the audio system
 async function initAudio() {
     try {
-        // Create audio context
+        // Create audio context with suspended state for mobile
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Resume audio context if suspended
-        if (audioContext.state === 'suspended') {
-            await audioContext.resume();
-        }
-        
-        // Load all sound effects
-        await loadSound('shoot', 'sound/shoot.mp3');
-        await loadSound('shoot_local', 'sound/shoot.mp3'); // Load the same shoot sound with a different identifier
-        await loadSound('walk', 'sound/walk.mp3');
-        await loadSound('walk_local', 'sound/walk.mp3'); // Load the same walk sound with a different identifier
-        await loadSound('hazard_damage', 'sound/hazard_damage.mp3');
-        
-        // Load walking sound
-        //await loadSound('walking', 'sound/walk.mp3');
+        // Load all sound effects without playing them
+        await Promise.all([
+            loadSound('shoot', 'sound/shoot.mp3'),
+            loadSound('shoot_local', 'sound/shoot.mp3'),
+            loadSound('walk', 'sound/walk.mp3'),
+            loadSound('walk_local', 'sound/walk.mp3'),
+            loadSound('hazard_damage', 'sound/hazard_damage.mp3')
+        ]);
+
+        // Add a one-time click/touch handler to resume audio context
+        const resumeAudioContext = async () => {
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            document.removeEventListener('click', resumeAudioContext);
+            document.removeEventListener('touchstart', resumeAudioContext);
+        };
+
+        document.addEventListener('click', resumeAudioContext);
+        document.addEventListener('touchstart', resumeAudioContext);
         
         console.log('Audio system initialized successfully');
+        return true;
     } catch (error) {
         console.error('Failed to initialize audio system:', error);
+        return false;
     }
 }
 
