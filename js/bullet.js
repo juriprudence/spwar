@@ -146,10 +146,27 @@ function updateParticles(delta) {
                         positions[j * 3 + 2] = 0;
                         lifetimes[j] = Math.random() * 0.8 + 0.2; // Reset lifetime
                     } else {
-                        // Move particle according to its velocity
-                        positions[j * 3] += velocities[j].x * delta;
-                        positions[j * 3 + 1] += velocities[j].y * delta;
-                        positions[j * 3 + 2] += velocities[j].z * delta;
+                        // Calculate new positions with delta time scaling
+                        const dx = velocities[j].x * delta;
+                        const dy = velocities[j].y * delta;
+                        const dz = velocities[j].z * delta;
+
+                        const newX = positions[j * 3] + dx;
+                        const newY = positions[j * 3 + 1] + dy;
+                        const newZ = positions[j * 3 + 2] + dz;
+
+                        // Only update if values are valid
+                        if (!isNaN(newX) && !isNaN(newY) && !isNaN(newZ)) {
+                            positions[j * 3] = newX;
+                            positions[j * 3 + 1] = newY;
+                            positions[j * 3 + 2] = newZ;
+                        } else {
+                            // Reset particle if it becomes invalid
+                            positions[j * 3] = 0;
+                            positions[j * 3 + 1] = 0;
+                            positions[j * 3 + 2] = 0;
+                            lifetimes[j] = 0; // This will trigger a reset on next frame
+                        }
                     }
                 }
                 
@@ -174,10 +191,24 @@ function updateParticles(delta) {
                 if (lifetimes[j] > 0) {
                     allDead = false;
                     
-                    // Move particle according to its velocity
-                    positions[j * 3] += velocities[j].x * delta;
-                    positions[j * 3 + 1] += velocities[j].y * delta;
-                    positions[j * 3 + 2] += velocities[j].z * delta;
+                    // Calculate new positions with delta time scaling
+                    const dx = velocities[j].x * delta;
+                    const dy = velocities[j].y * delta;
+                    const dz = velocities[j].z * delta;
+
+                    const newX = positions[j * 3] + dx;
+                    const newY = positions[j * 3 + 1] + dy;
+                    const newZ = positions[j * 3 + 2] + dz;
+
+                    // Only update if values are valid
+                    if (!isNaN(newX) && !isNaN(newY) && !isNaN(newZ)) {
+                        positions[j * 3] = newX;
+                        positions[j * 3 + 1] = newY;
+                        positions[j * 3 + 2] = newZ;
+                    } else {
+                        // If position becomes invalid, mark particle as dead
+                        lifetimes[j] = 0;
+                    }
                     
                     // Fade out based on lifetime
                     const fadeRatio = lifetimes[j] / child.userData.maxLifetime;
@@ -219,9 +250,9 @@ function shoot() {
     muzzlePosition.y += 0.5; // Adjust to gun height
     createMuzzleFlashParticles(muzzlePosition, shootDirection, currentWeapon.projectileColor);
     
-    // Play sound based on weapon type
+    // Try to play sound and initialize audio if needed
     if (typeof playSound === 'function') {
-        playSound('shoot'); // Use different sounds later if available
+        playSound('shoot_local'); // Use local identifier for shooting sound
     }
     
     switch(currentWeapon.bulletType) {

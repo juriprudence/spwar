@@ -197,6 +197,39 @@
             user-select: none; /* Prevent text selection */
             -webkit-user-select: none; /* Safari */
         }
+        #playerList {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            min-width: 150px;
+            text-align: center;
+            z-index: 1000;
+        }
+        .playerListHeader {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 5px;
+        }
+        #playerListItems {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .playerListItem {
+            padding: 3px 0;
+            font-size: 14px;
+        }
+        .localPlayer {
+            color: #00ff00;
+        }
     </style>
 </head>
 <body>
@@ -214,17 +247,36 @@
             <div id="healthFill"></div>
         </div>
         <div id="miniMap"></div>
+        <div id="playerList">
+            <div class="playerListHeader">Players Online</div>
+            <div id="playerListItems"></div>
+        </div>
         <div id="gameOverScreen">
             <h2>Game Over</h2>
             <div id="restartButton">Restart</div>
+        </div>
+        
+        <!-- Loading Screen -->
+        <div id="loadingScreen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000;">
+            <h1 style="color: #fff; font-family: Arial, sans-serif; margin-bottom: 20px;">Loading Game...</h1>
+            <div style="width: 300px; height: 20px; background: #333; border-radius: 10px; overflow: hidden;">
+                <div id="loadingBar" style="width: 0%; height: 100%; background: #4CAF50; transition: width 0.3s ease-out;"></div>
+            </div>
+            <div id="loadingText" style="color: #fff; font-family: Arial, sans-serif; margin-top: 10px;">Initializing...</div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
     
     <!-- Game Scripts -->
-     <script src="photon.min.js"></script>
+    <script src="photon.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/maze.js"></script>
     <script src="js/player_model.js"></script> <!-- Added player model script -->
@@ -233,6 +285,8 @@
     <script src="js/enemy.js"></script>
     <script src="js/bullet.js"></script>
     <script src="js/powerups.js"></script> <!-- Added powerups script -->
+    <script src="js/audio.js"></script> <!-- Added audio system -->
+    <script src="js/hazards.js"></script> <!-- Added hazards system -->
     <script src="js/ui.js"></script>
     <script src="js/main.js"></script>
     <script src="js/multiplayer.js"></script>

@@ -1,7 +1,7 @@
 // Game Configuration
 
 // Maze
-const MAZE_SIZE = 25; // Increased maze size further
+const MAZE_SIZE = 49.5; // Changed to 49.5 to get 100x100 maze (2 * 49.5 + 1 = 100)
 const DRAW_MAZE = true; // Set to false to draw a simple plane instead of the maze
 
 // Player

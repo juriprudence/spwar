@@ -106,29 +106,51 @@ function updatePowerUps(delta) {
         // Bob up and down using global powerUpSpawnTimer for consistent bobbing phase
         powerUp.position.y = powerUp.baseY + Math.sin(powerUpSpawnTimer + powerUp.floatOffset) * powerUp.floatHeight;
 
-        // Animate particles if they exist and have orbit data
+        // Update particle positions
         powerUp.children.forEach(child => {
-            if (child instanceof THREE.Points && child.userData.orbit) {
-                child.userData.orbitAngle += child.userData.orbitSpeed;
-                child.rotation.y = child.userData.orbitAngle;
+            if (child instanceof THREE.Points && child.userData.positions) {
+                const positions = child.userData.positions;
+                const originalPositions = child.userData.originalPositions;
+                
+                // Update orbit angle with delta time
+                child.userData.orbitAngle += child.userData.orbitSpeed * delta;
+                
+                // Update each particle position
+                for (let j = 0; j < positions.length / 3; j++) {
+                    // Calculate new position
+                    const angle = child.userData.orbitAngle + (j / (positions.length / 3)) * Math.PI * 2;
+                    const newX = Math.cos(angle) * child.userData.radius;
+                    const newZ = Math.sin(angle) * child.userData.radius;
+                    
+                    // Check for NaN before applying
+                    if (!isNaN(newX) && !isNaN(newZ)) {
+                        positions[j * 3] = newX;
+                        positions[j * 3 + 2] = newZ;
+                    } else {
+                        // Reset to original position if NaN occurs
+                        positions[j * 3] = originalPositions[j * 3];
+                        positions[j * 3 + 1] = originalPositions[j * 3 + 1];
+                        positions[j * 3 + 2] = originalPositions[j * 3 + 2];
+                    }
+                }
+                
+                // Update the geometry
+                child.geometry.attributes.position.needsUpdate = true;
             }
         });
 
-
         // Check for collision with player
-        if (player && player.position) { // Check if player exists
+        if (player && player.position) {
             const distanceToPlayer = powerUp.position.distanceTo(player.position);
-            if (distanceToPlayer < 1.2) { // Collision threshold
+            if (distanceToPlayer < 1.2) {
                 const powerUpData = POWERUP_TYPES[powerUp.powerUpType];
                 if (powerUpData && powerUpData.effect) {
-                    powerUpData.effect(player); // Pass player object to effect
+                    powerUpData.effect(player);
                 }
 
                 if (typeof playSound === 'function') playSound('powerup');
 
                 scene.remove(powerUp);
-                // Also remove particles
-                powerUp.children.filter(c => c instanceof THREE.Points).forEach(p => powerUp.remove(p));
                 powerUps.splice(i, 1);
 
                 if (typeof showNotification === 'function' && powerUpData) {
@@ -138,11 +160,8 @@ function updatePowerUps(delta) {
         }
     }
 
-    // Update spawn timer (assuming powerUpSpawnTimer is a global in main.js, incremented there)
-    // powerUpSpawnTimer += delta; // This should be done in main.js animate loop
-
     // Spawn new power-ups periodically
-    if (Math.random() < 0.005) { // Adjust chance as needed
+    if (Math.random() < 0.005) {
         spawnRandomPowerUp();
     }
 }
@@ -169,17 +188,21 @@ function createPowerUpParticles(powerUp) {
     // Create a simple particle system around the power-up
     const particleCount = 8;
     const particlePositions = new Float32Array(particleCount * 3);
+    const particleSizes = new Float32Array(particleCount);
 
+    // Initialize particles in a circle around the power-up
     for (let i = 0; i < particleCount; i++) {
         const angle = (i / particleCount) * Math.PI * 2;
         const radius = 0.5;
         particlePositions[i * 3] = Math.cos(angle) * radius;
         particlePositions[i * 3 + 1] = 0; // Centered around powerup's y=0
         particlePositions[i * 3 + 2] = Math.sin(angle) * radius;
+        particleSizes[i] = 0.1; // Consistent size
     }
 
     const particleGeometry = new THREE.BufferGeometry();
     particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
 
     const powerUpData = POWERUP_TYPES[powerUp.powerUpType];
     const particleColor = powerUpData ? powerUpData.color : 0xffffff;
@@ -189,15 +212,21 @@ function createPowerUpParticles(powerUp) {
         size: 0.1,
         transparent: true,
         opacity: 0.7,
-        blending: THREE.AdditiveBlending, // For a brighter effect
-        depthWrite: false // Particles don't obscure each other as much
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
     });
 
     const particles = new THREE.Points(particleGeometry, particleMaterial);
-    powerUp.add(particles); // Add particles as a child of the power-up
+    powerUp.add(particles);
 
-    // Make particles orbit around the power-up
-    particles.userData.orbit = true;
-    particles.userData.orbitSpeed = (Math.random() * 0.02 + 0.01) * (Math.random() < 0.5 ? 1 : -1); // Random speed and direction
-    particles.userData.orbitAngle = Math.random() * Math.PI * 2; // Random start angle
+    // Store initial positions and orbit data
+    particles.userData = {
+        positions: particlePositions,
+        originalPositions: particlePositions.slice(),
+        orbitSpeed: (Math.random() * 0.02 + 0.01) * (Math.random() < 0.5 ? 1 : -1),
+        orbitAngle: Math.random() * Math.PI * 2,
+        radius: 0.5
+    };
+
+    return particles;
 }

@@ -35,9 +35,13 @@ function manageEnemySpawningBasedOnRemotePlayers() {
     if (aliveRemotePlayers === 0 && !loadingPlayers) {
         // No alive remote players, ensure local enemies are present
         if (enemies.length === 0) {
-            // Ensure maze is ready before attempting to create enemies
-            if (typeof maze !== 'undefined' && maze.length > 0) {
-                console.log("manageEnemySpawning: No alive remote players and no local enemies. Maze ready. Spawning enemies.");
+            // Check if we're using a maze or a simple plane
+            const isMazeReady = typeof DRAW_MAZE !== 'undefined' && DRAW_MAZE ? 
+                (typeof maze !== 'undefined' && maze.length > 0) : 
+                true; // If not using maze, consider it "ready"
+            
+            if (isMazeReady) {
+                console.log("manageEnemySpawning: No alive remote players and no local enemies. Environment ready. Spawning enemies.");
                 createEnemies(ENEMY_COUNT);
             } else {
                 console.warn("manageEnemySpawning: No alive remote players, no local enemies, but MAZE IS NOT READY. Cannot spawn enemies yet.");
@@ -63,10 +67,17 @@ function manageEnemySpawningBasedOnRemotePlayers() {
 
 // Initialize Photon connection
 function initializeMultiplayer() {
-    // Protocol 0 for WS (WebSocket) since game is on http://localhost
-    // Protocol 1 for WSS (Secure WebSocket)
-    photon = new Photon.LoadBalancing.LoadBalancingClient(1, "a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd", "1.0");
-    console.log("Photon client initialized with protocol 0 (WS). AppId: a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd, AppVersion: 1.0");
+    // Use protocol 0 (WS) for localhost/HTTP, protocol 1 (WSS) for HTTPS
+    const protocol = window.location.protocol === 'https:' ? 1 : 0;
+    console.log(`Initializing multiplayer with protocol ${protocol} (${window.location.protocol})`);
+    
+    try {
+        photon = new Photon.LoadBalancing.LoadBalancingClient(protocol, "a3478f4a-f2cb-4eb1-aa07-d3427e6b93fd", "1.0");
+        console.log("Photon client created successfully");
+    } catch (error) {
+        console.error("Error creating Photon client:", error);
+        return;
+    }
     
     // Set callbacks
     photon.onStateChange = onStateChange;
@@ -75,22 +86,103 @@ function initializeMultiplayer() {
     photon.onActorLeave = onPlayerLeave;
     photon.onEvent = onEvent;
     
-    // Connect to Photon server
-    photon.connectToRegionMaster("us");
+    // Add error handler
+    photon.onError = function(errorCode, errorMsg) {
+        console.error("Photon Error:", errorCode, errorMsg);
+    };
+    
+    // Connect to Name Server first
+    console.log("Attempting to connect to Name Server...");
+    try {
+        photon.connectToNameServer();
+        console.log("Name Server connection request sent");
+    } catch (error) {
+        console.error("Error connecting to Name Server:", error);
+    }
     
     // Setup broadcast interval
-    setInterval(broadcastPlayerState, 100); // Send position update 10 times per second
+    setInterval(broadcastPlayerState, 100);
+    
+    // Add connection health check
+    setInterval(checkConnection, 5000);
 }
 
 // Callback when the connection state changes
 function onStateChange(state) {
-    console.log("Photon state changed:", state); // Removed StateToName for compatibility
+    const states = {
+        0: "Uninitialized",
+        1: "ConnectingToNameServer",
+        2: "ConnectedToNameServer",
+        3: "ConnectingToMasterServer",
+        4: "ConnectedToMaster",
+        5: "JoiningLobby",
+        6: "ConnectedToLobby",
+        7: "Disconnecting",
+        8: "Disconnected",
+        9: "ConnectingToGameServer",
+        10: "ConnectedToGameServer",
+        11: "JoiningRoom",
+        12: "JoinedRoom",
+        13: "LeavingRoom",
+        14: "Error"
+    };
+    
+    console.log("Photon state changed to:", states[state] || state);
     
     switch (state) {
-        case Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster:
-            // Join or create room named "MazeShooterRoom"
-            photon.joinRoom("MazeShooterRoom", { createIfNotExists: true });
+        case Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToNameServer:
+            console.log("Connected to Name Server, connecting to region master...");
+            try {
+                photon.connectToRegionMaster("us");
+                console.log("Region Master connection request sent");
+            } catch (error) {
+                console.error("Error connecting to Region Master:", error);
+            }
             break;
+            
+        case Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster:
+            console.log("Connected to Master Server, joining/creating room...");
+            try {
+                photon.joinRoom("MazeShooterRoom", { createIfNotExists: true });
+                console.log("Room join/create request sent");
+            } catch (error) {
+                console.error("Error joining/creating room:", error);
+            }
+            break;
+            
+        case Photon.LoadBalancing.LoadBalancingClient.State.Error:
+            console.error("Connection error detected. Current state details:", photon.state);
+            setTimeout(() => {
+                if (!photon.isConnectedToMaster()) {
+                    console.log("Attempting to reconnect to Name Server...");
+                    try {
+                        photon.connectToNameServer();
+                        console.log("Name Server reconnection request sent from checkConnection");
+                    } catch (error) {
+                        console.error("Error during checkConnection reconnection attempt:", error);
+                    }
+                }
+            }, 3000);
+            break;
+    }
+}
+
+// Function to check connection health and reconnect if needed
+function checkConnection() {
+    if (!photon) {
+        console.error("checkConnection: Photon client is not initialized");
+        return;
+    }
+    
+    if (!photon.isConnectedToMaster() && !photon.isJoinedToRoom()) {
+        console.log("Connection check: Not connected. State:", photon.state);
+        console.log("Attempting to reconnect to Name Server...");
+        try {
+            photon.connectToNameServer();
+            console.log("Name Server reconnection request sent from checkConnection");
+        } catch (error) {
+            console.error("Error during checkConnection reconnection attempt:", error);
+        }
     }
 }
 
@@ -176,8 +268,7 @@ function loadRemotePlayerModel(playerID, color) {
     loader.load('model/robot.glb', (gltf) => {
         const playerModel = gltf.scene;
         
-        // DO NOT override the original materials and colors from the GLB file
-        // This preserves the original appearance of the model as seen in the 3D viewer
+        // Preserve the original materials and colors from the GLB file
         playerModel.traverse((node) => {
             if (node.isMesh) {
                 node.castShadow = true;
@@ -228,37 +319,7 @@ function loadRemotePlayerModel(playerID, color) {
         console.log(`Loading remote player model: ${(xhr.loaded / xhr.total * 100)}% loaded`);
     },
     // onError callback
-    (error) => {
-        console.error('Error loading remote player GLB model:', error);
-        // Fallback to created model if GLB fails
-        const playerModel = createRobotPlayerModel(color);
-        
-        // If we already have a targetPosition from updates that came in during loading,
-        // use that instead of the default position, but adjust Y coordinate
-        let initialPosition;
-        if (otherPlayers[playerID].targetPosition) {
-            initialPosition = otherPlayers[playerID].targetPosition.clone();
-            initialPosition.y = 0.6; // Adjust Y to sit properly on floor
-        } else {
-            initialPosition = new THREE.Vector3(playerID * 2, 0.6, -7); // Y=0.6
-        }
-                              
-        playerModel.position.copy(initialPosition);
-        playerModel.rotation.y = (otherPlayers[playerID].targetRotationY || 0); // Remove the Math.PI default rotation
-        
-        scene.add(playerModel);
-        
-        // Update player entry in otherPlayers
-        // Preserve existing data like position and rotation
-        const existingData = otherPlayers[playerID];
-        otherPlayers[playerID] = {
-            ...existingData,
-            model: playerModel,
-            lastUpdate: Date.now(),
-            loading: false,  // No longer loading
-            // If we didn't have a target position before, create one from the initial position
-            targetPosition: existingData.targetPosition || initialPosition.clone()
-        };
+        (error) => {        console.error('Error loading remote player GLB model:', error);                // Check if the player still exists in otherPlayers        if (!otherPlayers[playerID]) {            console.warn(`Player ${playerID} no longer exists in otherPlayers, skipping fallback model creation`);            return;        }                // Fallback to created model if GLB fails        const playerModel = createRobotPlayerModel(color);                // Create initial position with safe defaults        let initialPosition = new THREE.Vector3(playerID * 2, 0.6, -7);                // Only try to use existing position if it's available        const existingData = otherPlayers[playerID];        if (existingData && existingData.targetPosition) {            initialPosition.copy(existingData.targetPosition);            initialPosition.y = 0.6; // Ensure correct height        }                                      playerModel.position.copy(initialPosition);        playerModel.rotation.y = (existingData && existingData.targetRotationY) || 0;                scene.add(playerModel);                // Update player entry in otherPlayers with safe fallbacks        otherPlayers[playerID] = {            ...(existingData || {}),            model: playerModel,            lastUpdate: Date.now(),            loading: false,            targetPosition: initialPosition.clone()        };
         
         // Check for enemies again after loading completes
         manageEnemySpawningBasedOnRemotePlayers();
@@ -304,18 +365,30 @@ function onPlayerLeave(actor) {
 function broadcastPlayerState() {
     if (!photon.isJoinedToRoom() || !player) return;
     
-    photon.raiseEvent(2, {
-        position: {
-            x: player.position.x,
-            y: player.position.y,
-            z: player.position.z
-        },
-        rotation: {
-            y: player.rotation.y,
-            x: player.rotation.x
-        },
-        hp: playerHealth
-    });
+    try {
+        // If player is dead, ensure we broadcast 0 health
+        const currentHealth = isPlayerDead ? 0 : playerHealth;
+        
+        photon.raiseEvent(2, {
+            position: {
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z
+            },
+            rotation: {
+                y: player.rotation.y,
+                x: player.rotation.x
+            },
+            hp: currentHealth
+        });
+        
+        // Log when broadcasting 0 health
+        if (currentHealth <= 0) {
+            console.log("Broadcasting dead state (health = 0)");
+        }
+    } catch (error) {
+        console.warn("Error broadcasting player state:", error);
+    }
 }
 
 // Handle shooting in multiplayer
@@ -375,12 +448,7 @@ function onEvent(code, content, actorNr) {
                     // This client's local player was hit
                     playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
                     console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
-                    if (playerHealth <= 0) {
-                        console.log("Local player died.");
-                        // Call gameOver or similar function if it exists and is appropriate here
-                        // For now, just log. Consider if gameOver() should be callable from here.
-                        // gameOver(); // Potentially from ui.js or main.js
-                    }
+                                        if (playerHealth <= 0) {                        console.log("Local player died.");                        isPlayerDead = true;                        if (typeof gameOver === 'function') {                            gameOver();                        }                    }
                     // Update local health UI immediately
                      document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
 
@@ -403,20 +471,37 @@ function onEvent(code, content, actorNr) {
 // Update another player's state
 function updateRemotePlayerState(playerID, data) {
     if (!otherPlayers[playerID] || playerID === localPlayerID) {
-        // Do not update if player doesn't exist in otherPlayers OR if it's an event for the local player
-        if (playerID === localPlayerID) {
-            // This case should ideally be caught by the onEvent check `if (actorNr === localPlayerID) return;`
-            // but this is an additional safeguard.
-            // console.log(`updateRemotePlayerState: Attempted to update localPlayerID ${playerID}. Skipping.`);
-        }
         return;
     }
     
     const playerObj = otherPlayers[playerID];
     playerObj.lastUpdate = Date.now();
     
-    // Store position and rotation for when model is loaded
-    if (data.position) {
+    // Handle player health and death
+    if (typeof data.hp === 'number') {
+        const oldHp = playerObj.hp;
+        playerObj.hp = data.hp;
+        console.log(`Remote player ${playerID} health updated: ${oldHp} -> ${data.hp}`);
+        
+        // If player health is 0 or less, remove them from the scene
+        if (data.hp <= 0 && playerObj.model) {
+            console.log(`Player ${playerID} died (hp: ${data.hp}), attempting to remove from scene...`);
+            if (playerObj.model.parent) {
+                console.log(`Player ${playerID} model found in scene, parent:`, playerObj.model.parent);
+                scene.remove(playerObj.model);
+                console.log(`Player ${playerID} model removed from scene`);
+            } else {
+                console.log(`Player ${playerID} model not found in scene`);
+            }
+            delete otherPlayers[playerID];
+            console.log(`Player ${playerID} removed from otherPlayers. Current players:`, Object.keys(otherPlayers));
+            manageEnemySpawningBasedOnRemotePlayers();
+            return; // Exit early since player is dead
+        }
+    }
+    
+    // Only update position and rotation if player is alive
+    if (data.position && playerObj.model) {
         // Create new target position but preserve the Y value (height) we set to keep model on the floor
         const newTargetPos = new THREE.Vector3(
             data.position.x, 
@@ -459,23 +544,16 @@ function updateRemotePlayerState(playerID, data) {
     if (data.rotation) {
         playerObj.targetRotationY = data.rotation.y;
     }
-    
-    if (typeof data.hp === 'number') {
-        // Update our conceptual health for this remote player
-        // This is mainly for display purposes if we had health bars for others.
-        // The actual authority on health is the client owning that player.
-        if (!playerObj.hp || playerObj.hp !== data.hp) {
-             playerObj.hp = data.hp;
-             console.log(`updateRemotePlayerState: Updated remote player ${playerID} conceptual HP to: ${playerObj.hp}`);
-             // If a player's HP was updated (especially if it dropped to 0), re-evaluate enemy spawning
-             manageEnemySpawningBasedOnRemotePlayers();
-        }
-    }
 }
 
 // Handle remote player shooting
 function handleRemotePlayerShoot(data) {
     if (!scene) return;
+    
+    // Play shooting sound for remote player
+    if (typeof playSound === 'function') {
+        playSound('shoot');
+    }
     
     const bulletGeometry = new THREE.SphereGeometry(...BULLET_GEOMETRY_ARGS);
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: BULLET_COLOR });
@@ -570,24 +648,35 @@ function updateOtherPlayers(delta) {
             
             if (modelPos.distanceToSquared(targetPos) < 0.01) {
                 playerObj.isMoving = false; // Close enough to target, consider stopped
+                // Stop walking sound when player stops moving
+                if (wasMoving && typeof stopSound === 'function') {
+                    stopSound('walk');
+                }
             } else {
                 playerObj.isMoving = true; // Still moving towards target
+                // Calculate the actual distance the player has moved since last frame
+                const movementDistance = oldPosition.distanceTo(playerObj.model.position);
+                
+                // Play walking sound if actually moving
+                if (movementDistance > 0.05 && typeof playSound === 'function') {
+                    playSound('walk', true); // Use the default 'walk' sound for remote players
+                }
             }
             
-            // Calculate the actual distance the player has moved since last frame
-            const movementDistance = oldPosition.distanceTo(playerObj.model.position);
-            
             // Create dust effect when player is moving (and actually changed position)
-            if (playerObj.isMoving && movementDistance > 0.05) {
-                // Throttle dust effect based on last emission time
-                const currentTime = now;
-                if (!playerObj.lastDustTime || currentTime - playerObj.lastDustTime > 200) { // Emit dust every 200ms while moving
-                    playerObj.lastDustTime = currentTime;
-                    // Call dust particle function if available
-                    if (typeof createPlayerMovementDust === 'function') {
-                        // Use the player's color for dust if it exists
-                        const playerColor = playerObj.color || 0xd2b48c;
-                        createPlayerMovementDust(playerObj.model.position, playerColor);
+            if (playerObj.isMoving) {
+                const movementDistance = oldPosition.distanceTo(playerObj.model.position);
+                if (movementDistance > 0.05) {
+                    // Throttle dust effect based on last emission time
+                    const currentTime = now;
+                    if (!playerObj.lastDustTime || currentTime - playerObj.lastDustTime > 200) { // Emit dust every 200ms while moving
+                        playerObj.lastDustTime = currentTime;
+                        // Call dust particle function if available
+                        if (typeof createPlayerMovementDust === 'function') {
+                            // Use the player's color for dust if it exists
+                            const playerColor = playerObj.color || 0xd2b48c;
+                            createPlayerMovementDust(playerObj.model.position, playerColor);
+                        }
                     }
                 }
             }

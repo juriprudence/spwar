@@ -7,8 +7,8 @@ function updatePlayer(delta) {
                                   // Instead, we can make it invisible or move it.
                                   // For simplicity, let's just stop updating and rely on gameOver screen.
             // player.visible = false; // Alternative: make player invisible
+            return; // Stop updating if player is dead
         }
-        return; // Stop updating if player is dead
     }
 
     // Store previous position to detect actual movement
@@ -69,26 +69,37 @@ function updatePlayer(delta) {
         player.position.addScaledVector(direction, delta);
     }
 
+    // Handle walking sound effects
+    const isMoving = !collision && (Math.abs(playerVelocity.x) > 0.01 || Math.abs(playerVelocity.z) > 0.01);
+    const movementDistance = previousPosition.distanceTo(player.position);
+
+    if (isMoving && movementDistance > 0.05) {
+        // Play walking sound if we're actually moving
+        if (typeof playSound === 'function') {
+            playSound('walk_local', true); // Use a unique identifier for local player
+        }
+    } else {
+        // Stop walking sound if we've stopped moving
+        if (typeof stopSound === 'function') {
+            stopSound('walk_local');
+        }
+    }
+
     // Create dust effect for local player if moving
-    if (!collision && (Math.abs(playerVelocity.x) > 0.01 || Math.abs(playerVelocity.z) > 0.01)) {
-        // Calculate the actual distance the player has moved
-        const movementDistance = previousPosition.distanceTo(player.position);
-        
-        if (movementDistance > 0.05) {
-            // Throttle dust effect creation using a timer
-            const currentTime = Date.now();
-            if (!window.lastLocalPlayerDustTime || currentTime - window.lastLocalPlayerDustTime > 200) { // Emit dust every 200ms while moving
-                window.lastLocalPlayerDustTime = currentTime;
-                // Create dust particles at player's feet
-                if (typeof createPlayerMovementDust === 'function') {
-                    // Position dust at player's feet (below camera position)
-                    const dustPosition = player.position.clone();
-                    dustPosition.y = 0; // Ground level
-                    // Use the player's color if available, otherwise use default tan color
-                    const dustColor = (typeof localPlayerColor !== 'undefined' && localPlayerColor !== null) ? 
-                        localPlayerColor : 0xd2b48c;
-                    createPlayerMovementDust(dustPosition, dustColor);
-                }
+    if (isMoving && movementDistance > 0.05) {
+        // Throttle dust effect creation using a timer
+        const currentTime = Date.now();
+        if (!window.lastLocalPlayerDustTime || currentTime - window.lastLocalPlayerDustTime > 200) { // Emit dust every 200ms while moving
+            window.lastLocalPlayerDustTime = currentTime;
+            // Create dust particles at player's feet
+            if (typeof createPlayerMovementDust === 'function') {
+                // Position dust at player's feet (below camera position)
+                const dustPosition = player.position.clone();
+                dustPosition.y = 0; // Ground level
+                // Use the player's color if available, otherwise use default tan color
+                const dustColor = (typeof localPlayerColor !== 'undefined' && localPlayerColor !== null) ? 
+                    localPlayerColor : 0xd2b48c;
+                createPlayerMovementDust(dustPosition, dustColor);
             }
         }
     }

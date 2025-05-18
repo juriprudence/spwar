@@ -1,7 +1,4 @@
-// Game variables (initialized in init or by other modules)
-let scene, camera, renderer;
-let player; // Is the camera object
-let playerHealth; // Initialized from PLAYER_HEALTH_INITIAL in init
+// Game variables (initialized in init or by other modules)let scene, camera, renderer;let composer; // For post-processinglet bloomPass; // For glow effectlet player; // Is the camera objectlet playerSpotlight; // Spotlight attached to playerlet playerHealth; // Initialized from PLAYER_HEALTH_INITIAL in init// Loading trackinglet totalAssets = 0;let loadedAssets = 0;let loadingScreen;let loadingBar;let loadingText;function updateLoadingProgress(message) {    if (!loadingBar || !loadingText) return;        loadedAssets++;    const progress = (loadedAssets / totalAssets) * 100;    loadingBar.style.width = `${progress}%`;    loadingText.textContent = message || `Loading... ${Math.round(progress)}%`;        // Hide loading screen when everything is loaded    if (loadedAssets >= totalAssets) {        setTimeout(() => {            loadingScreen.style.opacity = '0';            setTimeout(() => {                loadingScreen.style.display = 'none';            }, 500);        }, 500);    }}
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
 let bullets = [], enemies = [], walls = [];
 let maze = []; // Populated by generateMaze() in maze.js
@@ -30,15 +27,74 @@ let currentLevel = 1; // Initial game level
 let enemyProjectiles = []; // Array for enemy projectiles
 let isPlayerDead = false; // Flag to track player's death state
 
+// Audio system for game sounds
+let isGameOver = false;
+
+// Loading tracking
+let totalAssets = 0;
+let loadedAssets = 0;
+let loadingScreen;
+let loadingBar;
+let loadingText;
+
+function updateLoadingProgress(message) {
+    if (!loadingBar || !loadingText) return;
+    
+    loadedAssets++;
+    const progress = (loadedAssets / totalAssets) * 100;
+    loadingBar.style.width = `${progress}%`;
+    loadingText.textContent = message || `Loading... ${Math.round(progress)}%`;
+    
+    // Hide loading screen when everything is loaded
+    if (loadedAssets >= totalAssets) {
+        setTimeout(() => {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }, 500);
+    }
+}
+
 // Initialize and start the game
 // Ensure DOM is loaded before trying to get elements or add listeners that depend on DOM elements
 document.addEventListener('DOMContentLoaded', () => {
+    // Get loading screen elements
+    loadingScreen = document.getElementById('loadingScreen');
+    loadingBar = document.getElementById('loadingBar');
+    loadingText = document.getElementById('loadingText');
+    
+    // Add transition for smooth fade-out
+    if (loadingScreen) {
+        loadingScreen.style.transition = 'opacity 0.5s ease-out';
+    }
+    
+    // Calculate total assets to load
+    totalAssets = 8; // Base assets: scene, camera, renderer, lights, floor texture, skybox, audio system, hazards
+    
     init();
-    animate();
 });
 
 function init() {
     playerHealth = PLAYER_HEALTH_INITIAL; // From config.js
+    
+    // Initialize audio system on first user interaction
+    function initAudioOnInteraction() {
+        if (typeof initAudio === 'function') {
+            initAudio();
+            updateLoadingProgress('Audio system initialized');
+            // Remove the event listeners once audio is initialized
+            document.removeEventListener('click', initAudioOnInteraction);
+            document.removeEventListener('touchstart', initAudioOnInteraction);
+            document.removeEventListener('keydown', initAudioOnInteraction);
+        }
+    }
+    
+    // Add event listeners for user interaction
+    document.addEventListener('click', initAudioOnInteraction);
+    document.addEventListener('touchstart', initAudioOnInteraction);
+    document.addEventListener('keydown', initAudioOnInteraction);
+    
     currentPlayerSpeed = PLAYER_SPEED; // Initialize current speed from config
     powerUpSpawnTimer = 0; // Initialize power-up spawn timer
     isPlayerDead = false; // Reset player death state on init
@@ -102,16 +158,43 @@ function init() {
         };
     }
 
-
     // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(SCENE_BACKGROUND_COLOR); // From config.js
+    updateLoadingProgress('Scene created');
+
+    // Create skybox
+    const skyLoader = new THREE.TextureLoader();
+    skyLoader.load('sky.jfif', function(texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.background = texture;
+        updateLoadingProgress('Skybox loaded');
+    });
 
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Eye level is set in config.js, player start position is calculated based on maze
     player = camera; // Player is the camera
     player.rotation.order = 'YXZ'; // Explicitly set Euler order for consistent FPS controls
+    updateLoadingProgress('Camera initialized');
+
+    // Add player spotlight
+    playerSpotlight = new THREE.SpotLight(0xffffff, 1);
+    playerSpotlight.angle = Math.PI / 6;
+    playerSpotlight.penumbra = 0.2;
+    playerSpotlight.decay = 1.5;
+    playerSpotlight.distance = 15;
+    playerSpotlight.castShadow = true;
+    playerSpotlight.shadow.mapSize.width = 512;
+    playerSpotlight.shadow.mapSize.height = 512;
+    playerSpotlight.shadow.camera.near = 0.5;
+    playerSpotlight.shadow.camera.far = 20;
+    playerSpotlight.position.set(0, 0.5, 0);
+    player.add(playerSpotlight);
+    
+    const spotlightTarget = new THREE.Object3D();
+    spotlightTarget.position.set(0, 0, -1);
+    player.add(spotlightTarget);
+    playerSpotlight.target = spotlightTarget;
 
     // Create renderer
     const gameCanvas = document.getElementById('gameCanvas');
@@ -122,6 +205,24 @@ function init() {
     renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 1;
+    updateLoadingProgress('Renderer initialized');
+
+    // Set up post-processing
+    composer = new THREE.EffectComposer(renderer);
+    const renderPass = new THREE.RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    // Add bloom effect
+    bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.5,    // bloom strength
+        0.4,    // bloom radius
+        0.85    // bloom threshold
+    );
+    composer.addPass(bloomPass);
+    updateLoadingProgress('Post-processing setup complete');
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0x404040); // Consider moving color to config
@@ -149,10 +250,12 @@ function init() {
             const repeatValue = floorDimension / 2;
             texture.repeat.set(repeatValue, repeatValue);
             console.log(`Floor texture loaded. Dimension: ${floorDimension}, Repeat: ${repeatValue}`);
+            updateLoadingProgress('Floor texture loaded');
         },
         undefined,
         function (err) {
             console.error('An error happened while loading the floor texture:', err);
+            updateLoadingProgress('Floor texture failed to load');
         }
     );
 
@@ -242,8 +345,12 @@ function init() {
         // If pointer is locked, or if it's a general click not on UI, then shoot.
         // The check for UI elements is more for when pointer isn't locked.
         // When pointer is locked, event.target might not be reliable.
-         if ((document.pointerLockElement || document.mozPointerLockElement || document.webkitPointerLockElement) ||
+        if ((document.pointerLockElement || document.mozPointerLockElement || document.webkitPointerLockElement) ||
             !((joystick && joystick.contains(event.target)) || (shootButton && shootButton.contains(event.target)))) {
+            // Resume audio context if needed
+            if (typeof resumeAudio === 'function') {
+                resumeAudio();
+            }
             // Use multiplayer shooting function instead of shoot()
             shootMultiplayer();
         }
@@ -260,6 +367,13 @@ function init() {
         if (typeof spawnRandomPowerUp === 'function' && maze && maze.length > 0) {
             spawnRandomPowerUp();
         }
+        
+        // Replace the old hazard creation with our new function
+        createHazardZones();
+        updateLoadingProgress('Game elements initialized');
+        
+        // Start animation loop
+        animate();
     }, 3000); // Give the maze time to generate
 }
 
@@ -268,21 +382,113 @@ function animate() {
 
     const delta = clock.getDelta();
 
-    // Update game elements
-    updatePlayer(delta);  // from player.js
-    updateBullets(delta); // from bullet.js
-    updateParticles(delta); // from bullet.js - particle system for bullet trails
-    updateEnemies(delta); // from enemy.js
-    updatePowerUps(delta); // from powerups.js
-    powerUpSpawnTimer += delta; // Increment global timer used by powerups.js for bobbing
-    updateEnemyProjectiles(delta); // from enemy_types.js (or wherever it's moved)
-    
-    // Update multiplayer components
-    updateOtherPlayers(delta); // from multiplayer.js
-
-    // MiniMap updates itself via requestAnimationFrame in ui.js
-
-    if (renderer && scene && camera) {
-        renderer.render(scene, camera);
+    if (player && !isGameOver) {
+        // Update player movement
+        updatePlayer(delta);
+        
+        // Update walking sound
+        if (typeof updateWalkingSound === 'function') {
+            updateWalkingSound();
+        }
+        
+        // Check hazard collisions
+        checkHazardCollisions(player.position);
+        
+        // Update hazard effects
+        updateHazardEffects(delta);
+        
+        // Update spotlight target's world matrix
+        if (playerSpotlight && playerSpotlight.target) {
+            playerSpotlight.target.updateMatrixWorld();
+        }
+        
+        // Update game elements
+        updateBullets(delta); // from bullet.js
+        updateParticles(delta); // from bullet.js - particle system for bullet trails
+        updateEnemies(delta); // from enemy.js
+        updatePowerUps(delta); // from powerups.js
+        powerUpSpawnTimer += delta; // Increment global timer used by powerups.js for bobbing
+        updateEnemyProjectiles(delta); // from enemy_types.js (or wherever it's moved)
+        
+        // Update multiplayer components
+        updateOtherPlayers(delta); // from multiplayer.js
     }
+
+    // Use composer instead of renderer
+    if (composer && scene && camera) {
+        composer.render();
+    }
+}
+
+function createHazardZones() {
+    if (!createHazardZone || !scene) {
+        console.error('Could not create hazard zones: createHazardZone function or scene not available');
+        return;
+    }
+
+    console.log('Creating hazard zones...');
+    const actualGridSize = maze.length;
+    const hazardSize = new THREE.Vector3(10, 1, 10); // Changed to Vector3 with y=1 for height
+
+    // Create an array of strategic positions for hazards
+    const hazardPositions = [
+        // Corner regions (4 hazards)
+        { x: -40, z: -40 },
+        { x: 40, z: -40 },
+        { x: -40, z: 40 },
+        { x: 40, z: 40 },
+
+        // Mid-edge regions (4 hazards)
+        { x: 0, z: -40 },
+        { x: 0, z: 40 },
+        { x: -40, z: 0 },
+        { x: 40, z: 0 },
+
+        // Inner ring (8 hazards)
+        { x: -20, z: -20 },
+        { x: 20, z: -20 },
+        { x: -20, z: 20 },
+        { x: 20, z: 20 },
+        { x: 0, z: -20 },
+        { x: 0, z: 20 },
+        { x: -20, z: 0 },
+        { x: 20, z: 0 },
+
+        // Random positions in quadrants (4 hazards)
+        { x: -30, z: -10 },
+        { x: 30, z: 10 },
+        { x: -10, z: 30 },
+        { x: 10, z: -30 }
+    ];
+
+    // Create hazards at each position
+    hazardPositions.forEach((pos, index) => {
+        // Alternate between acid and lava for variety
+        const hazardType = index % 2 === 0 ? 'ACID' : 'LAVA';
+        createHazardZone(
+            hazardType,
+            new THREE.Vector3(pos.x, -1, pos.z),
+            hazardSize
+        );
+    });
+}
+
+// Update window resize handler
+function onWindowResize() {
+    if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Update composer size
+        if (composer) {
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Update bloom pass resolution
+        if (bloomPass) {
+            bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+        }
+    }
+    // ... rest of resize code ...
 }

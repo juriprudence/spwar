@@ -579,18 +579,52 @@ function setupFullscreenControls() {
     updateFullscreenButtonText();
 }
 // window.addEventListener('resize', onWindowResize); // Listener will be added in main.js
-// Placeholder for player list UI
+// Function to update the player list UI
 function setupPlayerListUI() {
-    console.log("setupPlayerListUI called");
-    // TODO: Implement actual player list UI
-    const playerListElement = document.getElementById('playerList');
-    if (playerListElement) {
-        // Basic placeholder content
-        playerListElement.innerHTML = '&lt;h3&gt;Players&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Player 1 (You)&lt;/li&gt;&lt;/ul&gt;';
-    } else {
-        console.warn("playerList element not found in HTML for setupPlayerListUI");
+    const playerListItems = document.getElementById('playerListItems');
+    if (!playerListItems) {
+        console.error('playerListItems element not found in HTML');
+        return;
+    }
+
+    // Initial update
+    updatePlayerList();
+
+    // Update every second
+    setInterval(updatePlayerList, 1000);
+}
+
+function updatePlayerList() {
+    const playerListItems = document.getElementById('playerListItems');
+    if (!playerListItems) return;
+
+    // Clear current list
+    playerListItems.innerHTML = '';
+
+    // Add local player
+    const localPlayerDiv = document.createElement('div');
+    localPlayerDiv.className = 'playerListItem localPlayer';
+    localPlayerDiv.textContent = `You (HP: ${Math.max(0, Math.round(playerHealth))}%)`;
+    playerListItems.appendChild(localPlayerDiv);
+
+    // Add other players
+    if (typeof otherPlayers === 'object') {
+        for (const playerID in otherPlayers) {
+            const player = otherPlayers[playerID];
+            if (player) {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'playerListItem';
+                const hp = player.hp !== undefined ? Math.max(0, Math.round(player.hp)) : '?';
+                playerDiv.textContent = `Player ${playerID} (HP: ${hp}%)`;
+                playerListItems.appendChild(playerDiv);
+            }
+        }
     }
 }
+
+// Export the function for use in main.js
+window.setupPlayerListUI = setupPlayerListUI;
+window.updatePlayerList = updatePlayerList;
 
 // Function to update the weapon display
 function updateWeaponDisplay() {
