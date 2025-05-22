@@ -12,7 +12,7 @@ let keysPressed = {}; // Global object to store pressed keys
 let joystickActive = false;
 let joystickDirection = new THREE.Vector2();
 let turnJoystickDirection = new THREE.Vector2(); // For the turning joystick
-let joystickKnob, joystick, joystickRect, shootButton, launchRocketBtnElement; // Added launchRocketBtnElement
+let joystickKnob, joystick, joystickRect, shootButton; // DOM elements
 // turnJoystickElement, turnJoystickKnobElement, turnJoystickRect are handled in ui.js
 
 // Power-up related global variables
@@ -149,40 +149,6 @@ function init() {
                 }
             }, 15000); // 15 seconds
         };
-        // Rocket-specific power-up effects
-        POWERUP_TYPES.ROCKET_AMMO.effect = (player) => {
-            playerControlledRocketAmmo = Math.min(playerControlledRocketAmmo + 1, 5); // Max 5 rockets
-            if (typeof updateScoreDisplay === 'function') updateScoreDisplay(50);
-            if (typeof showNotification === 'function') showNotification("+1 Rocket Ammo!");
-        };
-        POWERUP_TYPES.ROCKET_SPEED.effect = (player) => {
-            // Store original rocket speed
-            const originalRocketSpeed = ROCKET_SPEED;
-            ROCKET_SPEED *= 1.5; // Increase rocket speed by 50%
-            
-            if (typeof updateScoreDisplay === 'function') updateScoreDisplay(75);
-            if (typeof showNotification === 'function') showNotification("Rocket Speed Boost!");
-            
-            // Reset after 20 seconds
-            setTimeout(() => {
-                ROCKET_SPEED = originalRocketSpeed;
-                if (typeof showNotification === 'function') showNotification("Rocket Speed Boost Expired!");
-            }, 20000);
-        };
-        POWERUP_TYPES.ROCKET_HOMING.effect = (player) => {
-            // Enable homing rockets
-            const originalHomingEnabled = ROCKET_HOMING_ENABLED;
-            ROCKET_HOMING_ENABLED = true;
-            
-            if (typeof updateScoreDisplay === 'function') updateScoreDisplay(100);
-            if (typeof showNotification === 'function') showNotification("Homing Rockets Enabled!");
-            
-            // Reset after 30 seconds
-            setTimeout(() => {
-                ROCKET_HOMING_ENABLED = originalHomingEnabled;
-                if (typeof showNotification === 'function') showNotification("Homing Rockets Disabled!");
-            }, 30000);
-        };
     }
 
     // Create scene
@@ -316,12 +282,9 @@ function init() {
     setupMobileControls(); // This will also fetch joystick, joystickKnob, shootButton DOM elements
     setupFullscreenControls(); // Add call to setup fullscreen button
     
-    // Initialize weapon display and selector
+    // Initialize weapon display
     if (typeof updateWeaponDisplay === 'function') {
         updateWeaponDisplay();
-    }
-    if (typeof createWeaponSelector === 'function') {
-        createWeaponSelector();
     }
     
     // Add event listeners
@@ -564,57 +527,65 @@ function launchPlayerControlledRocket() {
     if (isPlayerDead || getActiveControlledRocket()) return; // Don't launch if dead or already controlling one
 
     if (playerControlledRocketAmmo <= 0) {
-        console.log("[MAIN.JS] launchPlayerControlledRocket: Out of ammo. Switching to default weapon.");
-        currentWeaponLevel = 0; // Switch to default weapon (level 0)
-        if (typeof updateWeaponDisplay === 'function') updateWeaponDisplay();
+        console.log("Out of player-controlled rockets!");
+        // if (typeof showNotification === 'function') showNotification("Out of Guided Rockets!");
         return;
     }
 
-    // Assuming 'R' key press in player.js has already set currentWeaponLevel to the rocket launcher.
-    const currentWeapon = WEAPON_TYPES[currentWeaponLevel];
-    const shootDirection = new THREE.Vector3();
-    player.getWorldDirection(shootDirection);
-
-    let launchedSuccessfully = false;
-    if (typeof otherPlayers !== 'undefined' && Object.keys(otherPlayers).length > 0 && photon && photon.isJoinedToRoom()) {
-        const eventData = {
-            weaponType: currentWeapon.id,
-            direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
-            launchPosition: { x: player.position.x, y: player.position.y, z: player.position.z },
-            isPlayerControlled: true,
-            ownerActorNr: player.actorNr
-        };
-        photon.raiseEvent(PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE, eventData);
-        console.log("[MAIN.JS] launchPlayerControlledRocket: Raised Photon event.");
+    // Check for remote players (otherPlayers is global, populated by multiplayer.js)
+    if (typeof otherPlayers !== 'undefined' && Object.keys(otherPlayers).length > 0) {
+        // Get player's current weapon and direction (similar to shoot() in bullet.js)
+        const currentWeapon = WEAPON_TYPES[currentWeaponLevel]; // WEAPON_TYPES, currentWeaponLevel from config/global
         
-        if (handleLocalPlayerControlledRocketLaunch(currentWeapon, shootDirection)) {
-            launchedSuccessfully = true;
+        if (currentWeapon.bulletType !== 'rocket') {
+            // Optionally, only allow this if current weapon is rocket, or create a specific new weapon type
+            console.log("Player-controlled rocket requires Rocket weapon to be active.");
+            // showNotification("Select Rocket weapon to launch guided missile!"); // showNotification from ui.js
+            return;
         }
-    } else if (typeof otherPlayers !== 'undefined' && Object.keys(otherPlayers).length > 0) {
-        // Fallback for local launch if Photon not connected but remote players are somehow listed (unlikely)
-        // Or, more likely, this branch is for single-player testing if we bypass the otherPlayers check for that.
-        // For now, let's assume if otherPlayers > 0, Photon should be used.
-        // If we want a true single-player mode for this, logic needs adjustment.
-        console.log("[MAIN.JS] launchPlayerControlledRocket: Remote players detected, but Photon not ready/joined. Attempting local launch only.");
-        if (handleLocalPlayerControlledRocketLaunch(currentWeapon, shootDirection)) {
-            launchedSuccessfully = true;
+
+        const shootDirection = new THREE.Vector3();
+        player.getWorldDirection(shootDirection); // player is the main camera/player object
+
+        // Call the actual shoot function from bullet.js, but with playerControlled = true
+        // This will return the bullet, but createRocketShot itself adds to scene and bullets array.
+        // We need a reference to the created rocket to pass to switchToRocketCamera.
+        // Modify createRocketShot to return the bullet or find it in the bullets array.
+        // For simplicity, let's assume createRocketShot is modified to return the bullet or we can find it.
+
+        // Photon event for launching player-controlled rocket
+        if (photon && photon.isJoinedToRoom()) {
+            const eventData = {
+                weaponType: currentWeapon.id, // or a specific ID for player-controlled rocket
+                direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
+                launchPosition: { x: player.position.x, y: player.position.y, z: player.position.z }, // Add launch position
+                isPlayerControlled: true,
+                ownerActorNr: player.actorNr // player.actorNr should be set by multiplayer.js
+            };
+            photon.raiseEvent(PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE, eventData); // Use the new specific event code
+            console.log("Raised event for player-controlled rocket launch with position.");
+            
+            // The local player also needs to create and switch to this rocket.
+            // The event raised will likely trigger creation for other players.
+            // For the local player, we can call a function that directly creates it and switches.
+            if (handleLocalPlayerControlledRocketLaunch(currentWeapon, shootDirection)) {
+                playerControlledRocketAmmo--; // Decrement ammo only if launch was successful locally
+                console.log(`Player-controlled rocket launched. Ammo remaining: ${playerControlledRocketAmmo}`);
+                // updateRocketAmmoUI(); // Placeholder for UI update
+            }
+        } else {
+            // Fallback for single player or if Photon not ready (though condition is remote players exist)
+            // This case might not be hit if otherPlayers check is strict.
+            if (handleLocalPlayerControlledRocketLaunch(currentWeapon, shootDirection)) {
+                 playerControlledRocketAmmo--; // Decrement ammo
+                 console.log(`Player-controlled rocket launched (offline/fallback). Ammo remaining: ${playerControlledRocketAmmo}`);
+                 // updateRocketAmmoUI(); // Placeholder for UI update
+            }
         }
+
     } else {
-        console.log("[MAIN.JS] launchPlayerControlledRocket: No remote players. Not launching multiplayer rocket.");
+        console.log("No remote players present to launch a player-controlled rocket.");
         // if (typeof showNotification === 'function') showNotification("No other players to target!");
-        return; // Do not proceed if no remote players, as per original logic intent
-    }
-
-    if (launchedSuccessfully) {
-        playerControlledRocketAmmo--;
-        console.log(`[MAIN.JS] Player-controlled rocket launched. Ammo: ${playerControlledRocketAmmo}`);
-        // if (typeof updateRocketAmmoUI === 'function') updateRocketAmmoUI();
-
-        if (playerControlledRocketAmmo <= 0) {
-            console.log("[MAIN.JS] launchPlayerControlledRocket: Last rocket fired. Switching to default weapon.");
-            currentWeaponLevel = 0; // Switch to default weapon (level 0)
-            if (typeof updateWeaponDisplay === 'function') updateWeaponDisplay();
-        }
     }
 }
 
@@ -652,64 +623,3 @@ function handleLocalPlayerControlledRocketLaunch(weapon, direction) {
 // Make setActiveCamera globally accessible if not already
 window.setActiveCamera = setActiveCamera;
 window.launchPlayerControlledRocket = launchPlayerControlledRocket; // Expose for keydown in player.js
-
-function setupMobileControls() {
-    joystick = document.getElementById('joystick');
-    joystickKnob = document.getElementById('joystickKnob');
-    shootButton = document.getElementById('shootButton');
-    launchRocketBtnElement = document.getElementById('launchRocketButton'); // Get the new button
-
-    if (joystick && joystickKnob) {
-        joystickRect = joystick.getBoundingClientRect();
-        // ... existing code ...
-    }
-
-    if (shootButton) {
-        shootButton.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent default touch actions like scrolling
-            if (!isPlayerDead && typeof shootMultiplayer === 'function' && !getActiveControlledRocket()) {
-                shootMultiplayer();
-            }
-        }, { passive: false }); // Use passive: false if preventDefault is used
-
-        shootButton.addEventListener('touchend', (e) => {
-            e.preventDefault(); 
-        });
-    }
-
-    if (launchRocketBtnElement) {
-        launchRocketBtnElement.addEventListener('click', handleRocketButtonPress); // For desktop clicks
-        launchRocketBtnElement.addEventListener('touchstart', (e) => { // For mobile touch
-            e.preventDefault();
-            handleRocketButtonPress();
-        }, { passive: false });
-    }
-}
-
-function handleRocketButtonPress() {
-    if (isPlayerDead || (typeof getActiveControlledRocket === 'function' && getActiveControlledRocket())) {
-        console.log("[MAIN.JS] Rocket button: Cannot fire, player dead or already controlling rocket.");
-        return;
-    }
-
-    console.log("[MAIN.JS] Rocket button pressed.");
-    // Instantly switch to Rocket Launcher weapon type
-    // WEAPON_TYPES and currentWeaponLevel are global
-    const rocketLauncherLevel = WEAPON_TYPES.findIndex(w => w.bulletType === 'rocket');
-    if (rocketLauncherLevel !== -1) {
-        currentWeaponLevel = rocketLauncherLevel;
-        console.log(`[MAIN.JS] Switched to Rocket Launcher (level ${currentWeaponLevel}) via UI button.`);
-        if (typeof updateWeaponDisplay === 'function') {
-            updateWeaponDisplay();
-        }
-    } else {
-        console.warn("[MAIN.JS] Could not find Rocket Launcher weapon type in config for UI button.");
-        return; 
-    }
-
-    // Now attempt to launch the player-controlled rocket
-    // launchPlayerControlledRocket is global from main.js
-    if (typeof launchPlayerControlledRocket === 'function') {
-        launchPlayerControlledRocket();
-    }
-}

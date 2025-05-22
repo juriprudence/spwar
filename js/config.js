@@ -11,8 +11,8 @@ const PLAYER_EYE_LEVEL = 1.2; // Reduced for smaller feel
 
 // Mouse Controls
 const MOUSE_SENSITIVITY = 0.002;
-const MIN_PITCH = -Math.PI / 2 + 0.1; // Minimum camera pitch (looking almost straight down)
-const MAX_PITCH = Math.PI / 2 - 0.1;  // Maximum camera pitch (looking almost straight up)
+const MIN_PITCH = -Math.PI / 2 + 0.01; //radians, slightly more than -90 degrees
+const MAX_PITCH = Math.PI / 2 - 0.01;  //radians, slightly less than +90 degrees
 
 
 // Enemies
@@ -85,20 +85,20 @@ const BULLET_GEOMETRY_ARGS = [0.05, 0.05, 0.8, 8]; // Thin, long cylinder
 const LASER_BULLET_COLOR = 0xff0000; // Example: Red laser
 
 // Controls
-const JOYSTICK_TURN_SENSITIVITY = 1.5;
-const JOYSTICK_MOVEMENT_THRESHOLD = 0.1;
+const JOYSTICK_TURN_SENSITIVITY = 2;
+const JOYSTICK_MOVEMENT_THRESHOLD = 0.2;
 
 // Collision
 // Player collision with wall: player is ~0.5 radius, wall is 1.0 radius from center.
 // So, if distance between centers is < 1.5, it's a collision.
 // Using 1.4 for a little leeway.
-const PLAYER_WALL_COLLISION_THRESHOLD = 0.8; // Half of player width (0.3) + half of wall width (0.5)
+const PLAYER_WALL_COLLISION_THRESHOLD = 1.4;
 // Bullet collision with wall: bullet is 0.1 radius, wall is 1.0 radius.
 // Threshold < 1.1
-const BULLET_WALL_COLLISION_THRESHOLD = 0.6; // Half of bullet width (0.1) + half of wall width (0.5)
+const BULLET_WALL_COLLISION_THRESHOLD = 1.0;
 // Bullet collision with enemy: bullet radius (0.1) + enemy sphere radius
 const BULLET_RADIUS = 0.1; // Assuming from BULLET_GEOMETRY_ARGS[0]
-const BULLET_ENEMY_COLLISION_RADIUS_SUM = 0.6; // Bullet radius (0.1) + Enemy radius (0.5)
+const BULLET_ENEMY_COLLISION_RADIUS_SUM = BULLET_RADIUS + ENEMY_SPHERE_RADIUS;
 
 // Colors
 const SCENE_BACKGROUND_COLOR = 0x87CEEB;
@@ -133,21 +133,6 @@ const POWERUP_TYPES = {
         name: 'Shield',
         color: 0x8844ff,
         // effect: (player) => { ... apply shield ... updateScoreDisplay(100); }
-    },
-    ROCKET_AMMO: {
-        name: 'Rocket Ammo',
-        color: 0xff0000,
-        // effect: (player) => { ... add rocket ammo ... }
-    },
-    ROCKET_SPEED: {
-        name: 'Rocket Speed',
-        color: 0xff00ff,
-        // effect: (player) => { ... increase rocket speed ... }
-    },
-    ROCKET_HOMING: {
-        name: 'Homing Rocket',
-        color: 0x00ffff,
-        // effect: (player) => { ... enable homing rockets ... }
     }
 };
 
@@ -204,6 +189,3 @@ const PHOTON_EVENT_PLAYER_STATE_UPDATE = 2;
 const PHOTON_EVENT_PLAYER_SHOOT_STANDARD = 3;
 const PHOTON_EVENT_PLAYER_HIT = 4;
 const PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE = 5; // New event for player-controlled rocket
-
-// UI and Controls related constants
-const ROCKET_JOYSTICK_STEER_SENSITIVITY = 1.5; // Sensitivity for steering player-controlled rocket with joystick

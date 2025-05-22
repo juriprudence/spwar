@@ -488,36 +488,19 @@ function updateBullets(delta) {
         if (bullet.alive) {
             // Player-controlled rocket steering
             if (bullet.isPlayerControlled && bullet === activeControlledRocket) {
-                let steered = false;
-                // Keyboard steering (horizontal yaw)
+                // Horizontal steering (yaw)
                 if (keysPressed['ArrowLeft'] || keysPressed['a']) {
                     const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, ROCKET_STEER_RATE * delta);
                     bullet.velocity.applyMatrix4(rotationMatrix);
                     bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
-                    steered = true;
                 }
                 if (keysPressed['ArrowRight'] || keysPressed['d']) {
                     const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, -ROCKET_STEER_RATE * delta);
                     bullet.velocity.applyMatrix4(rotationMatrix);
                     bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
-                    steered = true;
                 }
-
-                // Mobile joystick steering (horizontal yaw)
-                // Assumes turnJoystickActive and turnJoystickDirection are global and updated by UI logic
-                if (typeof turnJoystickActive !== 'undefined' && turnJoystickActive && 
-                    typeof turnJoystickDirection !== 'undefined' && Math.abs(turnJoystickDirection.x) > JOYSTICK_MOVEMENT_THRESHOLD) {
-                    // Use turnJoystickDirection.x for left/right steering
-                    // Negative turnJoystickDirection.x usually means left, positive means right.
-                    // ROCKET_STEER_RATE is radians per second. We want similar responsiveness.
-                    const joystickSteerAngle = -turnJoystickDirection.x * ROCKET_JOYSTICK_STEER_SENSITIVITY * delta;
-                    const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, joystickSteerAngle);
-                    bullet.velocity.applyMatrix4(rotationMatrix);
-                    bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
-                    steered = true;
-                }
-                
                 // Simple auto-leveling or pitch control could be added here if desired
+                // For now, it just flies in the direction of its velocity
             }
 
             bullet.position.add(bullet.velocity.clone().multiplyScalar(delta));
@@ -527,22 +510,8 @@ function updateBullets(delta) {
                 bullet.lookAt(bullet.position.clone().add(bullet.velocity));
             } else if (bullet.isPlayerControlled && bullet === activeControlledRocket) {
                 // For controlled rockets, the orientation is handled by steering logic.
+                // We might need to ensure 'up' vector is correct if adding pitch control.
             }
-
-            // --- NEW: Check for floor collision for rockets ---
-            if (bullet.isRocket && bullet.position.y <= 0.1) { // Assuming floor is at y=0, 0.1 is a small buffer
-                console.log("[BULLET.JS] Rocket floor collision: Rocket ID:", bullet.uuid, "Player controlled?", bullet.isPlayerControlled);
-                createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
-                if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) {
-                    console.log("[BULLET.JS] Rocket floor collision: Calling switchToPlayerCamera for rocket:", bullet.uuid);
-                    switchToPlayerCamera();
-                }
-                bullet.alive = false;
-                scene.remove(bullet);
-                bullets.splice(i, 1);
-                continue; // Move to the next bullet
-            }
-            // --- END NEW --- 
 
             // Check collision with walls
             for (const wall of walls) { // walls is global in main.js
@@ -679,25 +648,22 @@ function updateBullets(delta) {
                             
                             // Raise event to notify other clients (and self for consistency if needed) about the hit
                             if (photon && photon.isJoinedToRoom()) {
-                                photon.raiseEvent(4, { 
-                                    victimActorNr: parseInt(playerID),
-                                    isRocket: bullet.isRocket // Add rocket information to the hit event
-                                }); // Event code 4 for player hit
-                                console.log(`Raised event 4 (player_hit) for victimActorNr: ${playerID}, isRocket: ${bullet.isRocket}`);
+                                photon.raiseEvent(4, { victimActorNr: parseInt(playerID) }); // Event code 4 for player hit
+                                console.log(`Raised event 4 (player_hit) for victimActorNr: ${playerID}`);
                             }
 
                             // Remove bullet if not piercing
                             if (!bullet.piercing) {
-                                bullet.alive = false;
-                                if(scene) scene.remove(bullet);
-                                bullets.splice(i, 1);
-                                break; // Bullet hits one player
-                            }
+                            bullet.alive = false;
+                            if(scene) scene.remove(bullet);
+                            bullets.splice(i, 1);
+                            break; // Bullet hits one player
                         }
                     }
                 }
             }
         }
+    }
     }
 }
 

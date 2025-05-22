@@ -4,28 +4,21 @@
 // let keysPressed = {}; 
 
 function updatePlayer(delta) {
-    if (isPlayerDead) {
-        // Reset all movement-related variables
-        playerVelocity.set(0, 0, 0);
-        direction.set(0, 0, 0);
-        joystickActive = false;
-        turnJoystickActive = false;
-        joystickDirection.set(0, 0);
-        turnJoystickDirection.set(0, 0);
-        
-        // Stop any walking sounds
-        if (typeof stopSound === 'function') {
-            stopSound('walk_local');
+    if (isPlayerDead) { // isPlayerDead is global from main.js
+        if (player && player.parent) { // Check if player (camera) is still in scene
+            // scene.remove(player); // Removing the main camera might cause issues with rendering loop.
+                                  // Instead, we can make it invisible or move it.
+                                  // For simplicity, let's just stop updating and rely on gameOver screen.
+            // player.visible = false; // Alternative: make player invisible
+            return; // Stop updating if player is dead
         }
-        
-        return;
     }
 
     // Store previous position to detect actual movement
     const previousPosition = player.position.clone();
 
     // Calculate velocity based on keys or joystick
-    playerVelocity.x = 0;
+    playerVelocity.x = 0; // playerVelocity is global in main.js
     playerVelocity.z = 0;
 
     // Use keysPressed for movement

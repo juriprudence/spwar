@@ -32,7 +32,7 @@ function manageEnemySpawningBasedOnRemotePlayers() {
 
     console.log(`manageEnemySpawning: Found ${aliveRemotePlayers} alive remote players. Current enemy count: ${enemies.length}. Loading players: ${loadingPlayers}`);
 
-    if (aliveRemotePlayers === 0 && !loadingPlayers && 1===2) {
+    if (aliveRemotePlayers === 0 && !loadingPlayers) {
         // No alive remote players, ensure local enemies are present
         if (enemies.length === 0) {
             // Check if we're using a maze or a simple plane
@@ -461,26 +461,11 @@ function onEvent(code, content, actorNr) {
                 console.log(`onEvent: Received event 4 (player_hit). Victim: ${victimID}, Event sent by: ${actorNr}`);
                 if (victimID === localPlayerID) {
                     // This client's local player was hit
-                    // Check if it was a rocket hit
-                    if (content.isRocket) {
-                        // Instant kill for rocket hits
-                        playerHealth = 0;
-                        console.log("Local player killed by rocket.");
-                    } else {
-                        // Normal bullet damage
-                        playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
-                        console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
-                    }
-                    
-                    if (playerHealth <= 0) {
-                        console.log("Local player died.");
-                        isPlayerDead = true;
-                        if (typeof gameOver === 'function') {
-                            gameOver();
-                        }
-                    }
+                    playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
+                    console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
+                                        if (playerHealth <= 0) {                        console.log("Local player died.");                        isPlayerDead = true;                        if (typeof gameOver === 'function') {                            gameOver();                        }                    }
                     // Update local health UI immediately
-                    document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
+                     document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
 
                 } else if (otherPlayers[victimID]) {
                     // A remote player was hit. Their client will manage their actual health.
