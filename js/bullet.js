@@ -400,7 +400,10 @@ function createLaserShot(weapon, direction) {
     }, BULLET_LIFESPAN);
 }
 
-function createRocketShot(weapon, direction) {
+const PLAYER_CONTROLLED_ROCKET_LIFESPAN = 3000; // 3 seconds for player-controlled rocket
+const ROCKET_STEER_RATE = Math.PI / 2; // Radians per second for turning
+
+function createRocketShot(weapon, direction, isPlayerControlled = false, initialPosition = null) {
     // Create a cylinder for the rocket
     const rocketGeometry = new THREE.CylinderGeometry(0.08, 0.15, 0.5, 8);
     // Rotate to point in direction of travel
@@ -409,8 +412,12 @@ function createRocketShot(weapon, direction) {
     const rocketMaterial = new THREE.MeshBasicMaterial({ color: weapon.projectileColor });
     const bullet = new THREE.Mesh(rocketGeometry, rocketMaterial);
     
-    // Position bullet at player's position
-    bullet.position.copy(player.position);
+    // Position bullet
+    if (initialPosition) {
+        bullet.position.copy(initialPosition);
+    } else {
+        bullet.position.copy(player.position); // Default to local player's position
+    }
     
     // Apply velocity based on weapon properties
     bullet.velocity = direction.clone().multiplyScalar(weapon.projectileSpeed);
@@ -418,6 +425,16 @@ function createRocketShot(weapon, direction) {
     bullet.damage = weapon.damage;
     bullet.isRocket = true;
     bullet.explosionRadius = weapon.explosionRadius || 3;
+    bullet.isPlayerControlled = isPlayerControlled; // New property
+    bullet.ownerActorNr = player.actorNr; // Store who fired it
+
+    if (isPlayerControlled) {
+        // Add a camera to this rocket
+        bullet.rocketCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        bullet.rocketCamera.position.set(0, 0.2, -0.5); // Position slightly behind and above the rocket's center
+        bullet.rocketCamera.lookAt(0, 0, 1); // Look forward relative to the rocket
+        bullet.add(bullet.rocketCamera); // Attach camera to rocket
+    }
     
     // Set up the rocket's orientation to match its direction
     bullet.lookAt(bullet.position.clone().add(direction));
@@ -441,27 +458,91 @@ function createRocketShot(weapon, direction) {
     scene.add(bullet);
     bullets.push(bullet);
 
+    const lifespan = isPlayerControlled ? PLAYER_CONTROLLED_ROCKET_LIFESPAN : BULLET_LIFESPAN;
+
     // Remove after lifespan
     setTimeout(() => {
+        console.log("[BULLET.JS] Rocket Timeout: Rocket ID:", bullet.uuid, "Player controlled?", bullet.isPlayerControlled, "Is it the active one?", getActiveControlledRocket() === bullet);
         bullet.alive = false;
+        if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) { 
+            console.log("[BULLET.JS] Rocket Timeout: Calling switchToPlayerCamera for rocket:", bullet.uuid);
+            switchToPlayerCamera(); 
+        }
         if (scene) scene.remove(bullet);
         const index = bullets.indexOf(bullet);
         if (index > -1) {
             bullets.splice(index, 1);
         }
-    }, BULLET_LIFESPAN);
+        // Explode if it was a player controlled rocket and simply timed out
+        if (bullet.isPlayerControlled) {
+             createExplosion(bullet.position, bullet.explosionRadius, bullet.damage / 2); // Reduced damage if timed out
+        }
+    }, lifespan);
+    
+    return bullet; // Return the created bullet object
 }
 
 function updateBullets(delta) {
     for (let i = bullets.length - 1; i >= 0; i--) { // Iterate backwards for safe removal
         const bullet = bullets[i];
         if (bullet.alive) {
+            // Player-controlled rocket steering
+            if (bullet.isPlayerControlled && bullet === activeControlledRocket) {
+                let steered = false;
+                // Keyboard steering (horizontal yaw)
+                if (keysPressed['ArrowLeft'] || keysPressed['a']) {
+                    const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, ROCKET_STEER_RATE * delta);
+                    bullet.velocity.applyMatrix4(rotationMatrix);
+                    bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
+                    steered = true;
+                }
+                if (keysPressed['ArrowRight'] || keysPressed['d']) {
+                    const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, -ROCKET_STEER_RATE * delta);
+                    bullet.velocity.applyMatrix4(rotationMatrix);
+                    bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
+                    steered = true;
+                }
+
+                // Mobile joystick steering (horizontal yaw)
+                // Assumes turnJoystickActive and turnJoystickDirection are global and updated by UI logic
+                if (typeof turnJoystickActive !== 'undefined' && turnJoystickActive && 
+                    typeof turnJoystickDirection !== 'undefined' && Math.abs(turnJoystickDirection.x) > JOYSTICK_MOVEMENT_THRESHOLD) {
+                    // Use turnJoystickDirection.x for left/right steering
+                    // Negative turnJoystickDirection.x usually means left, positive means right.
+                    // ROCKET_STEER_RATE is radians per second. We want similar responsiveness.
+                    const joystickSteerAngle = -turnJoystickDirection.x * ROCKET_JOYSTICK_STEER_SENSITIVITY * delta;
+                    const rotationMatrix = new THREE.Matrix4().makeRotationAxis(bullet.up, joystickSteerAngle);
+                    bullet.velocity.applyMatrix4(rotationMatrix);
+                    bullet.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromRotationMatrix(rotationMatrix), bullet.quaternion);
+                    steered = true;
+                }
+                
+                // Simple auto-leveling or pitch control could be added here if desired
+            }
+
             bullet.position.add(bullet.velocity.clone().multiplyScalar(delta));
             
-            // If it's a rocket, keep its orientation aligned with its direction
-            if (bullet.isRocket) {
+            // If it's a rocket, keep its orientation aligned with its direction (unless player controlled)
+            if (bullet.isRocket && !(bullet.isPlayerControlled && bullet === activeControlledRocket)) {
                 bullet.lookAt(bullet.position.clone().add(bullet.velocity));
+            } else if (bullet.isPlayerControlled && bullet === activeControlledRocket) {
+                // For controlled rockets, the orientation is handled by steering logic.
             }
+
+            // --- NEW: Check for floor collision for rockets ---
+            if (bullet.isRocket && bullet.position.y <= 0.1) { // Assuming floor is at y=0, 0.1 is a small buffer
+                console.log("[BULLET.JS] Rocket floor collision: Rocket ID:", bullet.uuid, "Player controlled?", bullet.isPlayerControlled);
+                createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
+                if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) {
+                    console.log("[BULLET.JS] Rocket floor collision: Calling switchToPlayerCamera for rocket:", bullet.uuid);
+                    switchToPlayerCamera();
+                }
+                bullet.alive = false;
+                scene.remove(bullet);
+                bullets.splice(i, 1);
+                continue; // Move to the next bullet
+            }
+            // --- END NEW --- 
 
             // Check collision with walls
             for (const wall of walls) { // walls is global in main.js
@@ -474,18 +555,19 @@ function updateBullets(delta) {
                     Math.abs(dy) < BULLET_WALL_COLLISION_THRESHOLD && // Check Y as well
                     Math.abs(dz) < BULLET_WALL_COLLISION_THRESHOLD) {
                     
-                    // Create impact particles at collision point
+                    console.log("[BULLET.JS] Bullet wall collision: Bullet ID:", bullet.uuid, "Is rocket?", bullet.isRocket, "Player controlled?", bullet.isPlayerControlled);
                     if (typeof createBulletImpactParticles === 'function') {
-                        // Get bullet color from the material if available
                         const bulletColor = bullet.material && bullet.material.color ? 
                             bullet.material.color.getHex() : 0xff9933;
-                        
                         createBulletImpactParticles(bullet.position.clone(), bulletColor);
                     }
                     
-                    // Handle rocket explosion on wall
                     if (bullet.isRocket) {
                         createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
+                         if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) {
+                            console.log("[BULLET.JS] Rocket wall collision: Calling switchToPlayerCamera for rocket:", bullet.uuid);
+                            switchToPlayerCamera();
+                        }
                     }
                     
                     bullet.alive = false;
@@ -519,7 +601,12 @@ function updateBullets(delta) {
                     
                     // Handle rocket explosion
                     if (bullet.isRocket) {
+                        console.log("[BULLET.JS] Rocket enemy collision: Rocket ID:", bullet.uuid, "Player controlled?", bullet.isPlayerControlled);
                         createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
+                        if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) {
+                            console.log("[BULLET.JS] Rocket enemy collision: Calling switchToPlayerCamera for rocket:", bullet.uuid);
+                            switchToPlayerCamera();
+                        }
                         bullet.alive = false;
                         scene.remove(bullet);
                         bullets.splice(i, 1);
@@ -580,29 +667,37 @@ function updateBullets(delta) {
                             }
                             
                             if (bullet.isRocket) {
+                                console.log("[BULLET.JS] Rocket remote player collision: Rocket ID:", bullet.uuid, "Player controlled?", bullet.isPlayerControlled);
                                 createExplosion(bullet.position, bullet.explosionRadius, bullet.damage);
+                                if (bullet.isPlayerControlled && getActiveControlledRocket() === bullet) {
+                                    console.log("[BULLET.JS] Rocket remote player collision: Calling switchToPlayerCamera for rocket:", bullet.uuid);
+                                    switchToPlayerCamera();
+                                }
                             }
                             
                             console.log(`Bullet hit remote player ${playerID}`);
                             
                             // Raise event to notify other clients (and self for consistency if needed) about the hit
                             if (photon && photon.isJoinedToRoom()) {
-                                photon.raiseEvent(4, { victimActorNr: parseInt(playerID) }); // Event code 4 for player hit
-                                console.log(`Raised event 4 (player_hit) for victimActorNr: ${playerID}`);
+                                photon.raiseEvent(4, { 
+                                    victimActorNr: parseInt(playerID),
+                                    isRocket: bullet.isRocket // Add rocket information to the hit event
+                                }); // Event code 4 for player hit
+                                console.log(`Raised event 4 (player_hit) for victimActorNr: ${playerID}, isRocket: ${bullet.isRocket}`);
                             }
 
                             // Remove bullet if not piercing
                             if (!bullet.piercing) {
-                            bullet.alive = false;
-                            if(scene) scene.remove(bullet);
-                            bullets.splice(i, 1);
-                            break; // Bullet hits one player
+                                bullet.alive = false;
+                                if(scene) scene.remove(bullet);
+                                bullets.splice(i, 1);
+                                break; // Bullet hits one player
+                            }
                         }
                     }
                 }
             }
         }
-    }
     }
 }
 
@@ -908,6 +1003,40 @@ function createBulletImpactParticles(position, color) {
     return particles;
 }
 
+// Global variable to track the currently controlled rocket
+let activeControlledRocket = null;
+
+// Function to switch to rocket camera (will be called from player.js or main.js)
+function switchToRocketCamera(rocket) {
+    if (rocket && rocket.isPlayerControlled && rocket.rocketCamera) {
+        activeControlledRocket = rocket;
+        // mainCamera, gameRenderer would be globals from main.js
+        // Store original camera state if not already done
+        // gameRenderer.camera = rocket.rocketCamera; // This needs to be set in the render loop
+        if (typeof setActiveCamera === 'function') { // Assuming setActiveCamera is in main.js
+            setActiveCamera(rocket.rocketCamera);
+        }
+        console.log("Switched to rocket camera");
+    }
+}
+
+// Function to switch back to player camera (placeholder, actual implementation in main.js/player.js)
+function switchToPlayerCamera() {
+    console.log("[BULLET.JS] switchToPlayerCamera: Entered function. Current activeControlledRocket (before change):", getActiveControlledRocket() ? getActiveControlledRocket().uuid : null);
+    console.log("[BULLET.JS] switchToPlayerCamera: Player object (main camera) reference:", player ? player.uuid : 'player object is null');
+    
+    if (typeof setActiveCamera === 'function' && player ) { // player itself IS the main camera object in your setup
+         console.log("[BULLET.JS] switchToPlayerCamera: Calling setActiveCamera with player object (UUID:", player.uuid, ").");
+         setActiveCamera(player); // setActiveCamera is global, from main.js
+    } else {
+        console.error("[BULLET.JS] switchToPlayerCamera: CRITICAL - setActiveCamera is not a function OR player object is null! setActiveCamera type:", typeof setActiveCamera, "Player defined?", player !== null && player !== undefined);
+    }
+    
+    activeControlledRocket = null; // This is a global in bullet.js scope
+    console.log("[BULLET.JS] switchToPlayerCamera: activeControlledRocket is NOW null.");
+    console.log("[BULLET.JS] switchToPlayerCamera: Exiting function.");
+}
+
 // Export the update function for main.js animation loop
 if (typeof window !== 'undefined') {
     window.updateBullets = updateBullets;
@@ -915,6 +1044,9 @@ if (typeof window !== 'undefined') {
     window.createPlayerMovementDust = createPlayerMovementDust;
     window.createEnemyMovementDust = createEnemyMovementDust;
     window.createBulletImpactParticles = createBulletImpactParticles;
+    window.switchToRocketCamera = switchToRocketCamera; // Export new function
+    window.switchToPlayerCamera = switchToPlayerCamera; // Export new function
+    window.getActiveControlledRocket = () => activeControlledRocket; // Getter for active rocket
 }
 
 // The 'click' event listener for shooting might be added in main.js or ui.js

@@ -765,3 +765,149 @@ function showNotification(message, duration = 3000) {
         }
     }, duration);
 }
+
+// Create the weapon selector UI
+function createWeaponSelector() {
+    let uiContainer = document.querySelector('.ui-container');
+    
+    // Create the UI container if it doesn't exist
+    if (!uiContainer) {
+        uiContainer = document.createElement('div');
+        uiContainer.className = 'ui-container';
+        document.body.appendChild(uiContainer);
+    }
+    
+    const weaponSelector = document.createElement('div');
+    weaponSelector.id = 'weaponSelector';
+    weaponSelector.className = 'weapon-selector';
+    uiContainer.appendChild(weaponSelector);
+    
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .weapon-selector {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            pointer-events: auto;
+        }
+        .weapon-option {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            padding: 5px;
+        }
+        .weapon-option:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+        .weapon-option.active {
+            border-color: #ffff00;
+            background-color: rgba(255, 255, 0, 0.2);
+        }
+        .weapon-icon {
+            width: 30px;
+            height: 30px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .weapon-name {
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Create weapon options
+    WEAPON_TYPES.forEach((weapon, index) => {
+        const option = document.createElement('div');
+        option.className = 'weapon-option';
+        option.dataset.weaponIndex = index;
+        
+        // Create icon based on weapon type
+        const icon = document.createElement('div');
+        icon.className = 'weapon-icon';
+        switch(weapon.bulletType) {
+            case 'single':
+                icon.textContent = '🔫';
+                break;
+            case 'spread':
+                icon.textContent = '🔫🔫🔫';
+                break;
+            case 'laser':
+                icon.textContent = '⚡';
+                break;
+            case 'rocket':
+                icon.textContent = '🚀';
+                break;
+            default:
+                icon.textContent = '🔫';
+        }
+        
+        const name = document.createElement('div');
+        name.className = 'weapon-name';
+        name.textContent = weapon.name;
+        
+        option.appendChild(icon);
+        option.appendChild(name);
+        
+        // Add click handler
+        option.addEventListener('click', () => {
+            if (currentWeaponLevel !== index) {
+                currentWeaponLevel = index;
+                updateWeaponSelector();
+                updateWeaponDisplay();
+                if (typeof playSound === 'function') {
+                    playSound('weapon_switch');
+                }
+            }
+        });
+        
+        weaponSelector.appendChild(option);
+    });
+    
+    // Initial update
+    updateWeaponSelector();
+}
+
+// Update the weapon selector UI
+function updateWeaponSelector() {
+    const weaponSelector = document.getElementById('weaponSelector');
+    if (!weaponSelector) return;
+    
+    const options = weaponSelector.querySelectorAll('.weapon-option');
+    options.forEach((option, index) => {
+        if (index === currentWeaponLevel) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+    });
+}
+
+// Export the new functions
+window.createWeaponSelector = createWeaponSelector;
+window.updateWeaponSelector = updateWeaponSelector;

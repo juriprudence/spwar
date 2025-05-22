@@ -479,6 +479,21 @@
                 
                 // Kill player
                 playerHealth = 0;
+                isPlayerDead = true; // Set the death flag
+                
+                // Reset all movement-related variables
+                if (typeof playerVelocity !== 'undefined') playerVelocity.set(0, 0, 0);
+                if (typeof direction !== 'undefined') direction.set(0, 0, 0);
+                if (typeof joystickActive !== 'undefined') joystickActive = false;
+                if (typeof turnJoystickActive !== 'undefined') turnJoystickActive = false;
+                if (typeof joystickDirection !== 'undefined') joystickDirection.set(0, 0);
+                if (typeof turnJoystickDirection !== 'undefined') turnJoystickDirection.set(0, 0);
+                
+                // Stop any walking sounds
+                if (typeof stopSound === 'function') {
+                    stopSound('walk_local');
+                }
+                
                 if (typeof gameOver === 'function') {
                     gameOver();
                 }

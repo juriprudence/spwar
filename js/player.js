@@ -1,33 +1,44 @@
 // Player related logic
 
+// keysPressed should be global, initialized in main.js
+// let keysPressed = {}; 
+
 function updatePlayer(delta) {
-    if (isPlayerDead) { // isPlayerDead is global from main.js
-        if (player && player.parent) { // Check if player (camera) is still in scene
-            // scene.remove(player); // Removing the main camera might cause issues with rendering loop.
-                                  // Instead, we can make it invisible or move it.
-                                  // For simplicity, let's just stop updating and rely on gameOver screen.
-            // player.visible = false; // Alternative: make player invisible
-            return; // Stop updating if player is dead
+    if (isPlayerDead) {
+        // Reset all movement-related variables
+        playerVelocity.set(0, 0, 0);
+        direction.set(0, 0, 0);
+        joystickActive = false;
+        turnJoystickActive = false;
+        joystickDirection.set(0, 0);
+        turnJoystickDirection.set(0, 0);
+        
+        // Stop any walking sounds
+        if (typeof stopSound === 'function') {
+            stopSound('walk_local');
         }
+        
+        return;
     }
 
     // Store previous position to detect actual movement
     const previousPosition = player.position.clone();
 
     // Calculate velocity based on keys or joystick
-    playerVelocity.x = 0; // playerVelocity is global in main.js
+    playerVelocity.x = 0;
     playerVelocity.z = 0;
 
-    if (moveForward || (joystickActive && joystickDirection.y < -JOYSTICK_MOVEMENT_THRESHOLD)) { // moveForward, joystickActive, joystickDirection from main.js; JOYSTICK_MOVEMENT_THRESHOLD from config.js
+    // Use keysPressed for movement
+    if (keysPressed['KeyW'] || keysPressed['ArrowUp'] || (joystickActive && joystickDirection.y < -JOYSTICK_MOVEMENT_THRESHOLD)) { // moveForward, joystickActive, joystickDirection from main.js; JOYSTICK_MOVEMENT_THRESHOLD from config.js
         playerVelocity.z = -currentPlayerSpeed * (joystickActive ? Math.abs(joystickDirection.y) : 1); // Use currentPlayerSpeed from main.js
     }
-    if (moveBackward || (joystickActive && joystickDirection.y > JOYSTICK_MOVEMENT_THRESHOLD)) {
+    if (keysPressed['KeyS'] || keysPressed['ArrowDown'] || (joystickActive && joystickDirection.y > JOYSTICK_MOVEMENT_THRESHOLD)) {
         playerVelocity.z = currentPlayerSpeed * (joystickActive ? joystickDirection.y : 1);
     }
-    if (moveLeft || (joystickActive && joystickDirection.x < -JOYSTICK_MOVEMENT_THRESHOLD)) {
+    if (keysPressed['KeyA'] || keysPressed['ArrowLeft'] || (joystickActive && joystickDirection.x < -JOYSTICK_MOVEMENT_THRESHOLD)) {
         playerVelocity.x = -currentPlayerSpeed * (joystickActive ? Math.abs(joystickDirection.x) : 1);
     }
-    if (moveRight || (joystickActive && joystickDirection.x > JOYSTICK_MOVEMENT_THRESHOLD)) {
+    if (keysPressed['KeyD'] || keysPressed['ArrowRight'] || (joystickActive && joystickDirection.x > JOYSTICK_MOVEMENT_THRESHOLD)) {
         playerVelocity.x = currentPlayerSpeed * (joystickActive ? joystickDirection.x : 1);
     }
 
@@ -119,53 +130,47 @@ function updatePlayer(delta) {
     }
 }
 
-function onKeyDown(event) { // moveForward etc are global in main.js
+function onKeyDown(event) { 
     if (isPlayerDead) return; // Ignore input if player is dead
 
-    switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-            moveForward = true;
-            break;
-        case 'ArrowLeft':
-        case 'KeyA':
-            moveLeft = true;
-            break;
-        case 'ArrowDown':
-        case 'KeyS':
-            moveBackward = true;
-            break;
-        case 'ArrowRight':
-        case 'KeyD':
-            moveRight = true;
-            break;
-        case 'Space':
-            if (!isPlayerDead) shootMultiplayer(); // shootMultiplayer from multiplayer.js (or shoot() if single player)
-            break;
+    keysPressed[event.code] = true;
+
+    if (event.code === 'Space') {
+        console.log("[PLAYER.JS] Space pressed. getActiveControlledRocket() returns:", getActiveControlledRocket());
+        if (!isPlayerDead && !getActiveControlledRocket()) { 
+            shootMultiplayer(); 
+        }
+    }
+    
+    if (event.code === 'KeyR' && !getActiveControlledRocket()) {
+        console.log("[PLAYER.JS] 'R' key pressed. getActiveControlledRocket() before action:", getActiveControlledRocket());
+        // Instantly switch to Rocket Launcher weapon type
+        const rocketLauncherLevel = WEAPON_TYPES.findIndex(w => w.bulletType === 'rocket');
+        if (rocketLauncherLevel !== -1) {
+            currentWeaponLevel = rocketLauncherLevel; // currentWeaponLevel is global
+            console.log(`Switched to Rocket Launcher (level ${currentWeaponLevel}) via R key.`);
+            // Update weapon UI if function exists
+            if (typeof updateWeaponDisplay === 'function') {
+                updateWeaponDisplay();
+            }
+        } else {
+            console.warn("Could not find Rocket Launcher weapon type in config.");
+            // Don't proceed if we couldn't switch to the required weapon
+            return; 
+        }
+
+        // Now attempt to launch the player-controlled rocket
+        // launchPlayerControlledRocket (global from main.js) will check ammo, remote players, and that current weapon is rocket.
+        if (typeof launchPlayerControlledRocket === 'function') {
+            launchPlayerControlledRocket();
+        }
     }
 }
 
-function onKeyUp(event) { // moveForward etc are global in main.js
+function onKeyUp(event) { 
     if (isPlayerDead) return; // Ignore input if player is dead
 
-    switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-            moveForward = false;
-            break;
-        case 'ArrowLeft':
-        case 'KeyA':
-            moveLeft = false;
-            break;
-        case 'ArrowDown':
-        case 'KeyS':
-            moveBackward = false;
-            break;
-        case 'ArrowRight':
-        case 'KeyD':
-            moveRight = false;
-            break;
-    }
+    keysPressed[event.code] = false; // Or delete keysPressed[event.code];
 }
 
 // Mouse look handler

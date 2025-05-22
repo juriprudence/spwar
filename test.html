@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Class Test</title>
+</head>
+<body>
+    <div id="result"></div>
+
+    <script src="js/classes/UIManager.js"></script>
+    <script src="js/classes/AudioManager.js"></script>
+    
+    <script>
+        document.getElementById('result').innerHTML = '';
+        
+        try {
+            const uiManager = new UIManager();
+            document.getElementById('result').innerHTML += 'UIManager loaded successfully<br>';
+        } catch (e) {
+            document.getElementById('result').innerHTML += 'UIManager error: ' + e.message + '<br>';
+        }
+        
+        try {
+            const audioManager = new AudioManager();
+            document.getElementById('result').innerHTML += 'AudioManager loaded successfully<br>';
+        } catch (e) {
+            document.getElementById('result').innerHTML += 'AudioManager error: ' + e.message + '<br>';
+        }
+    </script>
+</body>
+</html> 

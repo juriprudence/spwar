@@ -32,7 +32,7 @@ function manageEnemySpawningBasedOnRemotePlayers() {
 
     console.log(`manageEnemySpawning: Found ${aliveRemotePlayers} alive remote players. Current enemy count: ${enemies.length}. Loading players: ${loadingPlayers}`);
 
-    if (aliveRemotePlayers === 0 && !loadingPlayers) {
+    if (aliveRemotePlayers === 0 && !loadingPlayers && 1===2) {
         // No alive remote players, ensure local enemies are present
         if (enemies.length === 0) {
             // Check if we're using a maze or a simple plane
@@ -393,10 +393,25 @@ function broadcastPlayerState() {
 
 // Handle shooting in multiplayer
 function shootMultiplayer() {
-    // First do the local shooting logic
-    shoot();
+    // Get current weapon (WEAPON_TYPES and currentWeaponLevel are global, from config.js)
+    const currentWeapon = WEAPON_TYPES[currentWeaponLevel];
+
+    // Check conditions for launching a player-controlled rocket via standard fire
+    if (currentWeapon && currentWeapon.bulletType === 'rocket' && 
+        typeof playerControlledRocketAmmo !== 'undefined' && playerControlledRocketAmmo > 0 &&
+        typeof otherPlayers !== 'undefined' && Object.keys(otherPlayers).length > 0 &&
+        typeof window.launchPlayerControlledRocket === 'function') {
+
+        // Call the global function from main.js that handles player-controlled rocket launch
+        // This function already checks ammo, remote players, weapon type, raises event 5, and handles local launch + camera.
+        window.launchPlayerControlledRocket();
+        return; // Important: Don't proceed to fire a standard rocket
+    }
+
+    // If conditions for player-controlled rocket are not met, proceed with standard shot:
+    shoot(); // Local call to shoot() from bullet.js
     
-    // Then notify others
+    // Then notify others about a standard shot (event 3)
     if (photon.isJoinedToRoom()) {
         const shootDirection = new THREE.Vector3();
         player.getWorldDirection(shootDirection);
@@ -432,25 +447,40 @@ function onEvent(code, content, actorNr) {
             }
             break;
         */
-        case 2: // Player state update
+        case PHOTON_EVENT_PLAYER_STATE_UPDATE: // Player state update (use constant from config.js)
             updateRemotePlayerState(actorNr, content); // actorNr here is the sender of the state
             break;
             
-        case 3: // Shooting
-            handleRemotePlayerShoot(content); // content here is { position, direction }
+        case PHOTON_EVENT_PLAYER_SHOOT_STANDARD: // Shooting (use constant from config.js)
+            handleRemotePlayerShoot(content, actorNr); // Pass actorNr for context if needed by createRocketShot
             break;
 
-        case 4: // Player hit
+        case PHOTON_EVENT_PLAYER_HIT: // Player hit (use constant from config.js)
             if (content && typeof content.victimActorNr === 'number') {
                 const victimID = content.victimActorNr;
                 console.log(`onEvent: Received event 4 (player_hit). Victim: ${victimID}, Event sent by: ${actorNr}`);
                 if (victimID === localPlayerID) {
                     // This client's local player was hit
-                    playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
-                    console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
-                                        if (playerHealth <= 0) {                        console.log("Local player died.");                        isPlayerDead = true;                        if (typeof gameOver === 'function') {                            gameOver();                        }                    }
+                    // Check if it was a rocket hit
+                    if (content.isRocket) {
+                        // Instant kill for rocket hits
+                        playerHealth = 0;
+                        console.log("Local player killed by rocket.");
+                    } else {
+                        // Normal bullet damage
+                        playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
+                        console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
+                    }
+                    
+                    if (playerHealth <= 0) {
+                        console.log("Local player died.");
+                        isPlayerDead = true;
+                        if (typeof gameOver === 'function') {
+                            gameOver();
+                        }
+                    }
                     // Update local health UI immediately
-                     document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
+                    document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
 
                 } else if (otherPlayers[victimID]) {
                     // A remote player was hit. Their client will manage their actual health.
@@ -464,6 +494,10 @@ function onEvent(code, content, actorNr) {
             } else {
                 console.warn("onEvent: Received event 4 (player_hit) but content or victimActorNr is missing.");
             }
+            break;
+        case PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE: // New: Player-controlled rocket launched
+            console.log(`Received PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE from actorNr: ${actorNr}`, content);
+            handleRemotePlayerControlledRocketLaunch(content, actorNr);
             break;
     }
 }
@@ -547,7 +581,7 @@ function updateRemotePlayerState(playerID, data) {
 }
 
 // Handle remote player shooting
-function handleRemotePlayerShoot(data) {
+function handleRemotePlayerShoot(data, shooterActorNr) { // shooterActorNr might be useful for context
     if (!scene) return;
     
     // Play shooting sound for remote player
@@ -566,6 +600,8 @@ function handleRemotePlayerShoot(data) {
     const direction = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
     bullet.velocity = direction.multiplyScalar(BULLET_SPEED);
     bullet.alive = true;
+    bullet.damage = BULLET_DAMAGE; // from config.js
+    bullet.ownerActorNr = shooterActorNr; // Tag bullet with who shot it
     
     // Create muzzle flash at the gun position
     if (typeof createMuzzleFlashParticles === 'function') {
@@ -594,6 +630,48 @@ function handleRemotePlayerShoot(data) {
             bullets.splice(index, 1);
         }
     }, BULLET_LIFESPAN);
+}
+
+// New function to handle remote player-controlled rocket launch
+function handleRemotePlayerControlledRocketLaunch(data, actorNr) {
+    if (!scene || !data) return;
+
+    console.log(`handleRemotePlayerControlledRocketLaunch called by actorNr ${actorNr}`, data);
+
+    // Data should contain: { weaponType (or ID), direction, launchPosition, isPlayerControlled, ownerActorNr }
+    const remoteDirection = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
+    
+    const rocketWeaponConfig = WEAPON_TYPES.find(w => w.bulletType === 'rocket');
+    if (!rocketWeaponConfig) {
+        console.error("Could not find rocket weapon configuration for remote player-controlled rocket.");
+        return;
+    }
+
+    const effectiveWeapon = {
+        ...rocketWeaponConfig, 
+    };
+
+    const launchPos = data.launchPosition ? 
+        new THREE.Vector3(data.launchPosition.x, data.launchPosition.y, data.launchPosition.z) :
+        null; // If launchPosition is not sent, createRocketShot will use its default.
+
+    // Call createRocketShot, passing the initial position for remote rockets.
+    const rocket = createRocketShot(effectiveWeapon, remoteDirection, data.isPlayerControlled, launchPos);
+
+    if (rocket) {
+        // ownerActorNr is set again here to be absolutely sure, though createRocketShot might set it if isPlayerControlled is true locally.
+        // For remote calls, we rely on data.ownerActorNr from the event.
+        rocket.ownerActorNr = data.ownerActorNr; 
+        
+        // Position is now set by createRocketShot based on launchPos (or defaults if launchPos was null)
+        console.log(`Remote player-controlled rocket created for owner ${data.ownerActorNr}, controlled status: ${rocket.isPlayerControlled}, position: ${rocket.position.x.toFixed(2)}, ${rocket.position.y.toFixed(2)}, ${rocket.position.z.toFixed(2)}`);
+        
+        if (typeof playSound === 'function') {
+            playSound('rocket_launch_remote'); 
+        }
+    } else {
+        console.error("Failed to create remote player-controlled rocket.");
+    }
 }
 
 // Update other players' visuals (called from animate loop)
