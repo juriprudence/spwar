@@ -349,6 +349,18 @@ function init() {
         }
     });
     
+    // Weapon change button acts as 'R' key
+    const weaponChangeButton = document.getElementById('weaponChangeButton');
+    if (weaponChangeButton) {
+        weaponChangeButton.style.display = '';
+        weaponChangeButton.addEventListener('click', function(e) {
+            if (!window.getActiveControlledRocket || !window.getActiveControlledRocket()) {
+                currentWeaponLevel = (currentWeaponLevel + 1) % WEAPON_TYPES.length;
+                if (typeof updateWeaponDisplay === 'function') updateWeaponDisplay();
+            }
+        });
+    }
+    
     // Initialize multiplayer
     initializeMultiplayer();
     
