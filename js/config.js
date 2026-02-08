@@ -138,46 +138,46 @@ const POWERUP_TYPES = {
 
 // Weapon Types (placeholder, to be defined with actual weapon properties)
 const WEAPON_TYPES = [
-    { 
-        name: "Basic Gun", 
-        damage: 25, 
-        fireRate: 0.2, 
-        projectileSpeed: 20, 
+    {
+        name: "Basic Gun",
+        damage: 25,
+        fireRate: 0.2,
+        projectileSpeed: 20,
         projectileColor: 0xffff00,
-        bulletType: "single", 
-        level: 0 
+        bulletType: "single",
+        level: 0
     },
-    { 
-        name: "Spread Shot", 
-        damage: 20, 
-        fireRate: 0.3, 
-        projectileSpeed: 18, 
+    {
+        name: "Spread Shot",
+        damage: 20,
+        fireRate: 0.3,
+        projectileSpeed: 18,
         projectileColor: 0xff8800,
-        bulletType: "spread", 
+        bulletType: "spread",
         spreadAngle: 0.2, // angle in radians
         bulletCount: 3,
-        level: 1 
+        level: 1
     },
-    { 
-        name: "Laser Cannon", 
-        damage: 40, 
-        fireRate: 0.15, 
-        projectileSpeed: 30, 
+    {
+        name: "Laser Cannon",
+        damage: 40,
+        fireRate: 0.15,
+        projectileSpeed: 30,
         projectileColor: 0xff0000,
-        bulletType: "laser", 
+        bulletType: "laser",
         bulletLength: 1.2,  // longer bullet
         piercing: true,     // can hit multiple enemies
-        level: 2 
+        level: 2
     },
-    { 
-        name: "Rocket Launcher", 
-        damage: 75, 
-        fireRate: 0.5, 
-        projectileSpeed: 15, 
+    {
+        name: "Rocket Launcher",
+        damage: 75,
+        fireRate: 0.5,
+        projectileSpeed: 15,
         projectileColor: 0x0088ff,
-        bulletType: "rocket", 
+        bulletType: "rocket",
         explosionRadius: 3,
-        level: 3 
+        level: 3
     }
 ];
 let currentWeaponLevel = 0; // Initial weapon level
@@ -189,3 +189,4 @@ const PHOTON_EVENT_PLAYER_STATE_UPDATE = 2;
 const PHOTON_EVENT_PLAYER_SHOOT_STANDARD = 3;
 const PHOTON_EVENT_PLAYER_HIT = 4;
 const PLAYER_CONTROLLED_ROCKET_LAUNCH_EVENT_CODE = 5; // New event for player-controlled rocket
+const PHOTON_EVENT_PLAYER_RESTART_READY = 6; // New event for sync restart

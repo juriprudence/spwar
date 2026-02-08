@@ -66,7 +66,7 @@ function setupMiniMap() {
                 }
             }
         }
-        
+
         const worldToGrid = (worldCoord) => (worldCoord + actualGridSize - 1) / 2;
 
         // Draw power-ups with their respective colors
@@ -75,7 +75,7 @@ function setupMiniMap() {
                 // Convert world coordinates to grid coordinates
                 const gridX = worldToGrid(powerUp.position.x);
                 const gridZ = worldToGrid(powerUp.position.z);
-                
+
                 // Set the color based on the power-up type
                 if (powerUp.powerUpType && typeof powerUp.powerUpType.color !== 'undefined') {
                     // Convert the hex color to CSS color string
@@ -85,7 +85,7 @@ function setupMiniMap() {
                     // Default color if type or color is not available
                     miniMapCanvasContext.fillStyle = '#ffffff'; // White as fallback
                 }
-                
+
                 // Draw a diamond shape for power-ups to make them distinct
                 miniMapCanvasContext.beginPath();
                 miniMapCanvasContext.moveTo(gridX * cellSize, gridZ * cellSize - 3); // Top
@@ -120,7 +120,7 @@ function setupMiniMap() {
                 // Use the model's current interpolated position for smoother minimap representation
                 const remotePlayerGridX = worldToGrid(remotePlayer.model.position.x);
                 const remotePlayerGridZ = worldToGrid(remotePlayer.model.position.z);
-                
+
                 // Use a specific color if available, e.g., from remotePlayer.color or remotePlayer.model.material.color
                 // For now, a fixed 'green' or slightly different size.
                 miniMapCanvasContext.fillRect(remotePlayerGridX * cellSize - 2, remotePlayerGridZ * cellSize - 2, 5, 5); // Slightly different size/shape
@@ -150,7 +150,7 @@ function createPowerUpLegend() {
     if (legendContainer) {
         return; // Legend already exists
     }
-    
+
     // Make sure UI container exists
     let uiContainer = document.querySelector('.ui-container');
     if (!uiContainer) {
@@ -158,7 +158,7 @@ function createPowerUpLegend() {
         uiContainer = document.createElement('div');
         uiContainer.className = 'ui-container';
         document.body.appendChild(uiContainer);
-        
+
         // Add basic styles for the UI container if not already added
         if (!document.querySelector('style[data-for="ui-container"]')) {
             const containerStyle = document.createElement('style');
@@ -180,42 +180,42 @@ function createPowerUpLegend() {
             document.head.appendChild(containerStyle);
         }
     }
-    
+
     // Create legend container
     legendContainer = document.createElement('div');
     legendContainer.id = 'powerUpLegend';
     legendContainer.className = 'power-up-legend';
-    
+
     // Add title
     const title = document.createElement('div');
     title.className = 'legend-title';
     title.textContent = 'Power-Ups';
     legendContainer.appendChild(title);
-    
+
     // Add legend items
     if (typeof POWERUP_TYPES !== 'undefined') {
         for (const type in POWERUP_TYPES) {
             const powerUpType = POWERUP_TYPES[type];
-            
+
             const legendItem = document.createElement('div');
             legendItem.className = 'legend-item';
-            
+
             const colorBox = document.createElement('div');
             colorBox.className = 'color-box';
             colorBox.style.backgroundColor = '#' + powerUpType.color.toString(16).padStart(6, '0');
-            
+
             const label = document.createElement('span');
             label.textContent = powerUpType.name;
-            
+
             legendItem.appendChild(colorBox);
             legendItem.appendChild(label);
             legendContainer.appendChild(legendItem);
         }
     }
-    
+
     // Add to UI container
     uiContainer.appendChild(legendContainer);
-    
+
     // Add styles for legend
     const style = document.createElement('style');
     style.textContent = `
@@ -262,21 +262,21 @@ function setupMobileControls() {
     turnJoystickKnobElement = document.getElementById('turnJoystickKnob');
 
     if (joystick) {
-        joystick.addEventListener('touchstart', function(event) {
+        joystick.addEventListener('touchstart', function (event) {
             event.preventDefault();
             joystickActive = true; // joystickActive is global in main.js
             joystickRect = joystick.getBoundingClientRect(); // joystickRect is global in main.js
             updateJoystickPosition(event.touches[0]);
         }, { passive: false }); // Explicitly non-passive
 
-        document.addEventListener('touchmove', function(event) {
+        document.addEventListener('touchmove', function (event) {
             if (joystickActive) {
                 event.preventDefault();
                 updateJoystickPosition(event.touches[0]);
             }
         }, { passive: false }); // Explicitly non-passive
 
-        document.addEventListener('touchend', function(event) {
+        document.addEventListener('touchend', function (event) {
             // Check if the touchend originated from the joystick itself or is a general touchend
             let stillTouchingJoystick = false;
             if (event.touches) {
@@ -287,37 +287,37 @@ function setupMobileControls() {
                     }
                 }
             }
-             if (!stillTouchingJoystick && event.target !== joystick && !joystick.contains(event.target)) {
+            if (!stillTouchingJoystick && event.target !== joystick && !joystick.contains(event.target)) {
                 joystickActive = false;
-                if(joystickKnob) joystickKnob.style.transform = 'translate(0px, 0px)';
+                if (joystickKnob) joystickKnob.style.transform = 'translate(0px, 0px)';
                 joystickDirection.set(0, 0); // joystickDirection is global in main.js
             }
         });
-         // More specific touchend for joystick
-        joystick.addEventListener('touchend', function(event) {
+        // More specific touchend for joystick
+        joystick.addEventListener('touchend', function (event) {
             event.preventDefault(); // Prevent click events after touch
             joystickActive = false;
-            if(joystickKnob) joystickKnob.style.transform = 'translate(0px, 0px)';
+            if (joystickKnob) joystickKnob.style.transform = 'translate(0px, 0px)';
             joystickDirection.set(0, 0);
         });
     }
 
     if (shootButton) {
-        shootButton.addEventListener('touchstart', function(event) {
+        shootButton.addEventListener('touchstart', function (event) {
             event.preventDefault(); // Prevent click events after touch
             shoot(); // shoot from bullet.js
         }, { passive: false });
     }
 
     if (turnJoystickElement) {
-        turnJoystickElement.addEventListener('touchstart', function(event) {
+        turnJoystickElement.addEventListener('touchstart', function (event) {
             event.preventDefault();
             turnJoystickActive = true;
             turnJoystickRect = turnJoystickElement.getBoundingClientRect();
             updateTurnJoystickPosition(event.touches[0]);
         }, { passive: false });
 
-        document.addEventListener('touchmove', function(event) {
+        document.addEventListener('touchmove', function (event) {
             if (turnJoystickActive) {
                 // Check if the touch is for the turn joystick
                 // This simple check assumes one touch for movement and one for turning.
@@ -333,7 +333,7 @@ function setupMobileControls() {
             }
         }, { passive: false });
 
-        document.addEventListener('touchend', function(event) {
+        document.addEventListener('touchend', function (event) {
             let stillTouchingTurnJoystick = false;
             if (event.touches) {
                 for (let i = 0; i < event.touches.length; i++) {
@@ -356,30 +356,30 @@ function setupMobileControls() {
             }
 
             if (!stillTouchingTurnJoystick && relevantTouchEnded) {
-                 if (turnJoystickActive) { // Only reset if it was the active one
+                if (turnJoystickActive) { // Only reset if it was the active one
                     turnJoystickActive = false;
-                    if(turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
-                    if(turnJoystickDirection) turnJoystickDirection.set(0, 0); // turnJoystickDirection is global
-                 }
+                    if (turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
+                    if (turnJoystickDirection) turnJoystickDirection.set(0, 0); // turnJoystickDirection is global
+                }
             }
         });
-        
-        turnJoystickElement.addEventListener('touchend', function(event) {
+
+        turnJoystickElement.addEventListener('touchend', function (event) {
             event.preventDefault();
             turnJoystickActive = false;
-            if(turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
-            if(turnJoystickDirection) turnJoystickDirection.set(0, 0);
+            if (turnJoystickKnobElement) turnJoystickKnobElement.style.transform = 'translate(0px, 0px)';
+            if (turnJoystickDirection) turnJoystickDirection.set(0, 0);
         });
     }
 
     // Prevent default behavior for touch events on game container to avoid scrolling/zooming
     const gameContainer = document.getElementById('gameContainer');
     if (gameContainer) {
-        gameContainer.addEventListener('touchstart', function(event) {
+        gameContainer.addEventListener('touchstart', function (event) {
             // Allow touch on specific controls
             if (event.target !== joystick && !joystick.contains(event.target) &&
                 event.target !== shootButton && !shootButton.contains(event.target) &&
-                event.target !== turnJoystickElement && !turnJoystickElement.contains(event.target) ) {
+                event.target !== turnJoystickElement && !turnJoystickElement.contains(event.target)) {
                 // event.preventDefault(); // This might be too aggressive
             }
         }, { passive: false });
@@ -432,51 +432,107 @@ function updateTurnJoystickPosition(touch) {
 
 function gameOver() {
     const gameOverScreen = document.getElementById('gameOverScreen');
+    if (isGameOver || (gameOverScreen && gameOverScreen.style.display === 'flex')) return;
+
+    isGameOver = true;
     const restartButton = document.getElementById('restartButton');
+    const statusDiv = document.getElementById('gameOverStatus');
 
     if (gameOverScreen) gameOverScreen.style.display = 'flex';
+    if (statusDiv) statusDiv.textContent = '';
+
+    // Safety: Stop all walking sounds when game is over
+    if (typeof stopSound === 'function') {
+        stopSound('walk_local');
+        stopSound('walk');
+    }
 
     if (restartButton) {
-        // Remove old listener to prevent multiple executions if gameOver is called multiple times
         const newRestartButton = restartButton.cloneNode(true);
         restartButton.parentNode.replaceChild(newRestartButton, restartButton);
 
-        newRestartButton.addEventListener('click', function() {
-            // Reset game state (playerHealth is global in main.js)
-            playerHealth = PLAYER_HEALTH_INITIAL; // From config.js
-            isPlayerDead = false; // Reset player death state (isPlayerDead is global from main.js)
-            
-            // Ensure player (camera) is visible if it was hidden.
-            // if (player && typeof player.visible !== 'undefined') {
-            //     player.visible = true;
-            // }
-
-
-            if (player) { // player is global in main.js
-                 // Player starts at grid cell (1,1) of the 'maze' array.
-                 // World X = (grid_i * 2) - actualGridSize + 1
-                 const actualGridSizeForReset = 2 * MAZE_SIZE + 1; // MAZE_SIZE from config
-                 const startX = 1 * 2 - actualGridSizeForReset + 1;
-                 const startZ = 1 * 2 - actualGridSizeForReset + 1;
-                 player.position.set(startX, PLAYER_EYE_LEVEL, startZ); // PLAYER_EYE_LEVEL from config.js
+        newRestartButton.addEventListener('click', function () {
+            if (typeof sendRestartReady === 'function') {
+                sendRestartReady();
+                newRestartButton.style.opacity = '0.5';
+                newRestartButton.style.pointerEvents = 'none';
+                if (statusDiv) statusDiv.textContent = 'Waiting for opponent...';
             }
-
-
-            // Remove all enemies and bullets
-            if (scene) { // scene is global
-                enemies.forEach(enemy => scene.remove(enemy)); // enemies is global
-                bullets.forEach(bullet => scene.remove(bullet)); // bullets is global
-            }
-            enemies.length = 0; // Clear arrays
-            bullets.length = 0;
-
-            // Create new enemies
-            createEnemies(ENEMY_COUNT); // createEnemies from enemy.js, ENEMY_COUNT from config.js
-
-            // Hide game over screen
-            if (gameOverScreen) gameOverScreen.style.display = 'none';
         });
     }
+}
+
+function showVictory() {
+    const victoryScreen = document.getElementById('victoryScreen');
+    if (isGameOver || (victoryScreen && victoryScreen.style.display === 'flex')) return;
+
+    isGameOver = true;
+    const restartButton = document.getElementById('victoryRestartButton');
+    const statusDiv = document.getElementById('victoryStatus');
+
+    if (victoryScreen) victoryScreen.style.display = 'flex';
+    if (statusDiv) statusDiv.textContent = '';
+
+    if (restartButton) {
+        const newRestartButton = restartButton.cloneNode(true);
+        restartButton.parentNode.replaceChild(newRestartButton, restartButton);
+
+        newRestartButton.addEventListener('click', function () {
+            if (typeof sendRestartReady === 'function') {
+                sendRestartReady();
+                newRestartButton.style.opacity = '0.5';
+                newRestartButton.style.pointerEvents = 'none';
+                if (statusDiv) statusDiv.textContent = 'Waiting for opponent...';
+            }
+        });
+    }
+}
+
+function resetGameLocally() {
+    // Reset screens
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const victoryScreen = document.getElementById('victoryScreen');
+    if (gameOverScreen) gameOverScreen.style.display = 'none';
+    if (victoryScreen) victoryScreen.style.display = 'none';
+
+    // Safety: Stop all walking sounds when resetting
+    if (typeof stopSound === 'function') {
+        stopSound('walk_local');
+        stopSound('walk');
+    }
+
+    // Reset player stats
+    playerHealth = PLAYER_HEALTH_INITIAL;
+    isPlayerDead = false;
+    isGameOver = false;
+
+    // Reset health UI
+    const healthFill = document.getElementById('healthFill');
+    if (healthFill) healthFill.style.width = '100%';
+
+    // Reset position
+    if (player) {
+        const actualGridSizeForReset = 2 * MAZE_SIZE + 1;
+        const startX = 1 * 2 - actualGridSizeForReset + 1;
+        const startZ = 1 * 2 - actualGridSizeForReset + 1;
+        player.position.set(startX, PLAYER_EYE_LEVEL, startZ);
+    }
+
+    // Remove all enemies and bullets
+    if (scene) {
+        enemies.forEach(enemy => scene.remove(enemy));
+        bullets.forEach(bullet => scene.remove(bullet));
+    }
+    enemies.length = 0;
+    bullets.length = 0;
+
+    // Re-create enemies (removed for multiplayer-only mode)
+    // if (typeof createEnemies === 'function') {
+    //     createEnemies(ENEMY_COUNT);
+    // }
+
+    // Reset waiting screen if needed (multiplayer.js will handle this)
+    console.log("resetGameLocally: Game reset locally.");
 }
 
 
@@ -534,7 +590,7 @@ function setupFullscreenControls() {
 
             // Attempt to lock orientation to landscape
             if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                screen.orientation.lock('landscape').catch(function(error) {
+                screen.orientation.lock('landscape').catch(function (error) {
                     console.warn('Screen orientation lock failed:', error);
                 });
             } else {
@@ -625,6 +681,8 @@ function updatePlayerList() {
 // Export the function for use in main.js
 window.setupPlayerListUI = setupPlayerListUI;
 window.updatePlayerList = updatePlayerList;
+window.showVictory = showVictory;
+window.resetGameLocally = resetGameLocally;
 
 // Function to update the weapon display
 function updateWeaponDisplay() {
@@ -634,16 +692,16 @@ function updateWeaponDisplay() {
         createWeaponInfoDisplay();
         return updateWeaponDisplay(); // Call again after creating
     }
-    
+
     const currentWeapon = WEAPON_TYPES[currentWeaponLevel];
     weaponInfo.innerHTML = `
         <div class="weapon-name">${currentWeapon.name}</div>
         <div class="weapon-stats">
             <span>DMG: ${currentWeapon.damage}</span>
-            <span>ROF: ${Math.round(1/currentWeapon.fireRate)}/s</span>
+            <span>ROF: ${Math.round(1 / currentWeapon.fireRate)}/s</span>
         </div>
     `;
-    
+
     // Apply color based on weapon type
     weaponInfo.style.borderColor = '#' + currentWeapon.projectileColor.toString(16).padStart(6, '0');
 }
@@ -651,14 +709,14 @@ function updateWeaponDisplay() {
 // Create the weapon info display
 function createWeaponInfoDisplay() {
     let uiContainer = document.querySelector('.ui-container');
-    
+
     // Create the UI container if it doesn't exist
     if (!uiContainer) {
         console.log("UI container not found, creating one");
         uiContainer = document.createElement('div');
         uiContainer.className = 'ui-container';
         document.body.appendChild(uiContainer);
-        
+
         // Add basic styles for the UI container
         const containerStyle = document.createElement('style');
         containerStyle.textContent = `
@@ -677,12 +735,12 @@ function createWeaponInfoDisplay() {
         `;
         document.head.appendChild(containerStyle);
     }
-    
+
     const weaponInfo = document.createElement('div');
     weaponInfo.id = 'weaponInfo';
     weaponInfo.className = 'weapon-info';
     uiContainer.appendChild(weaponInfo);
-    
+
     // Add CSS styles
     const style = document.createElement('style');
     style.textContent = `
@@ -740,7 +798,7 @@ function showNotification(message, duration = 3000) {
     notification.style.marginBottom = '8px';
     notification.style.textAlign = 'center';
     notification.style.animation = 'fadeInOut 3s forwards';
-    
+
     // Add animation styles if not already present
     if (!document.getElementById('notificationStyles')) {
         const style = document.createElement('style');
@@ -755,9 +813,9 @@ function showNotification(message, duration = 3000) {
         `;
         document.head.appendChild(style);
     }
-    
+
     notificationContainer.appendChild(notification);
-    
+
     // Remove notification after duration
     setTimeout(() => {
         if (notification.parentNode) {

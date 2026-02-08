@@ -7,8 +7,8 @@ function updatePlayer(delta) {
     if (isPlayerDead) { // isPlayerDead is global from main.js
         if (player && player.parent) { // Check if player (camera) is still in scene
             // scene.remove(player); // Removing the main camera might cause issues with rendering loop.
-                                  // Instead, we can make it invisible or move it.
-                                  // For simplicity, let's just stop updating and rely on gameOver screen.
+            // Instead, we can make it invisible or move it.
+            // For simplicity, let's just stop updating and rely on gameOver screen.
             // player.visible = false; // Alternative: make player invisible
             return; // Stop updating if player is dead
         }
@@ -45,7 +45,7 @@ function updatePlayer(delta) {
     if (typeof turnJoystickActive !== 'undefined' && turnJoystickActive &&
         typeof turnJoystickDirection !== 'undefined' &&
         !(document.pointerLockElement || document.mozPointerLockElement || document.webkitPointerLockElement)) {
-        
+
         player.rotation.y -= turnJoystickDirection.x * delta * JOYSTICK_TURN_SENSITIVITY;
 
         // Optional: Implement pitch control with turnJoystickDirection.y if needed in the future
@@ -101,7 +101,7 @@ function updatePlayer(delta) {
                 const dustPosition = player.position.clone();
                 dustPosition.y = 0; // Ground level
                 // Use the player's color if available, otherwise use default tan color
-                const dustColor = (typeof localPlayerColor !== 'undefined' && localPlayerColor !== null) ? 
+                const dustColor = (typeof localPlayerColor !== 'undefined' && localPlayerColor !== null) ?
                     localPlayerColor : 0xd2b48c;
                 createPlayerMovementDust(dustPosition, dustColor);
             }
@@ -116,6 +116,12 @@ function updatePlayer(delta) {
     if (playerHealth <= 0 && !isPlayerDead) { // Check !isPlayerDead to run this once
         isPlayerDead = true; // Set the flag
         console.log("Player has died.");
+
+        // Stop walking sound immediately on death
+        if (typeof stopSound === 'function') {
+            stopSound('walk_local');
+        }
+
         // Player (camera) is not explicitly removed from scene here to avoid breaking renderer.
         // The game over screen will take over.
         // If a visual representation of the player existed beyond the camera, it would be removed here.
@@ -123,18 +129,18 @@ function updatePlayer(delta) {
     }
 }
 
-function onKeyDown(event) { 
+function onKeyDown(event) {
     if (isPlayerDead) return; // Ignore input if player is dead
 
     keysPressed[event.code] = true;
 
     if (event.code === 'Space') {
         console.log("[PLAYER.JS] Space pressed. getActiveControlledRocket() returns:", getActiveControlledRocket());
-        if (!isPlayerDead && !getActiveControlledRocket()) { 
-            shootMultiplayer(); 
+        if (!isPlayerDead && !getActiveControlledRocket()) {
+            shootMultiplayer();
         }
     }
-    
+
     if (event.code === 'KeyR' && !getActiveControlledRocket()) {
         console.log("[PLAYER.JS] 'R' key pressed. getActiveControlledRocket() before action:", getActiveControlledRocket());
         // Instantly switch to Rocket Launcher weapon type
@@ -149,7 +155,7 @@ function onKeyDown(event) {
         } else {
             console.warn("Could not find Rocket Launcher weapon type in config.");
             // Don't proceed if we couldn't switch to the required weapon
-            return; 
+            return;
         }
 
         // Now attempt to launch the player-controlled rocket
@@ -160,7 +166,7 @@ function onKeyDown(event) {
     }
 }
 
-function onKeyUp(event) { 
+function onKeyUp(event) {
     if (isPlayerDead) return; // Ignore input if player is dead
 
     keysPressed[event.code] = false; // Or delete keysPressed[event.code];
@@ -185,14 +191,14 @@ function handleMouseMove(event) {
     // We need to manage pitch carefully to avoid flipping over.
     // Instead of directly setting player.rotation.x, we'll manage it via an Euler angle
     // to ensure correct clamping and order of operations.
-    
+
     // Apply pitch to a temporary Euler angle, then clamp it.
     // Note: player is the camera itself.
     // We want to rotate around the camera's local X-axis for pitch.
     // However, directly manipulating player.rotation.x can lead to issues if player.rotation.y is also changing.
     // A common approach is to manage pitch separately or use quaternions.
     // For simplicity with Euler angles, we can try:
-    
+
     let currentPitch = player.rotation.x;
     currentPitch -= movementY * MOUSE_SENSITIVITY;
     player.rotation.x = THREE.MathUtils.clamp(currentPitch, MIN_PITCH, MAX_PITCH);
@@ -212,7 +218,7 @@ function setLocalPlayerInitialPosition() {
     if (typeof MAZE_SIZE === 'undefined' || typeof PLAYER_EYE_LEVEL === 'undefined') { // MAZE_SIZE, PLAYER_EYE_LEVEL from config.js
         console.error("setLocalPlayerInitialPosition: MAZE_SIZE or PLAYER_EYE_LEVEL not defined. Ensure config.js is loaded.");
         // Fallback to a default position if config is not loaded, though this is not ideal.
-        player.position.set(0, 1.6, 0); 
+        player.position.set(0, 1.6, 0);
         return;
     }
 
@@ -249,7 +255,7 @@ function setLocalPlayerInitialPosition() {
     } else {
         console.warn("setLocalPlayerInitialPosition: localPlayerID not defined, defaulting to center spawn.");
     }
-    
+
     // Ensure player is visible when position is set/reset
     // if (player) player.visible = true; // If we were making player invisible on death
 

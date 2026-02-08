@@ -16,7 +16,7 @@ async function initAudio() {
     try {
         // Create audio context with suspended state for mobile
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
+
         // Load all sound effects without playing them
         await Promise.all([
             loadSound('shoot', 'sound/shoot.mp3'),
@@ -37,7 +37,7 @@ async function initAudio() {
 
         document.addEventListener('click', resumeAudioContext);
         document.addEventListener('touchstart', resumeAudioContext);
-        
+
         console.log('Audio system initialized successfully');
         return true;
     } catch (error) {
@@ -61,7 +61,7 @@ async function loadSound(name, url) {
     }
 
     soundsLoading.add(name);
-    
+
     try {
         console.log(`Loading sound '${name}' from ${url}`);
         const response = await fetch(url);
@@ -156,18 +156,18 @@ function attemptPlaySound(name, shouldLoop = false) {
         // Create a new buffer source
         const source = audioContext.createBufferSource();
         source.buffer = soundEffects[name];
-        
+
         // Set looping if requested
         source.loop = shouldLoop;
-        
+
         // Create a gain node for volume control
         const gainNode = audioContext.createGain();
         gainNode.gain.value = 0.5; // Set volume to 50%
-        
+
         // Connect nodes: source -> gain -> destination
         source.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        
+
         // Start playing
         source.start(0);
         console.log(`Playing sound '${name}' ${shouldLoop ? '(looping)' : ''}`);
@@ -214,52 +214,8 @@ async function resumeAudio() {
     }
 }
 
-function playWalkingSound() {
-    if (!audioContext || !walkingSound) return;
-    
-    lastMovementTime = Date.now();
-    
-    if (!isWalkingSoundPlaying) {
-        isWalkingSoundPlaying = true;
-        
-        function playLoop() {
-            if (!isWalkingSoundPlaying) return;
-            
-            const source = audioContext.createBufferSource();
-            source.buffer = walkingSound;
-            source.connect(audioContext.destination);
-            source.start();
-            
-            // Check if player is still moving
-            source.onended = () => {
-                const timeSinceLastMovement = Date.now() - lastMovementTime;
-                if (timeSinceLastMovement < MOVEMENT_TIMEOUT && isWalkingSoundPlaying) {
-                    playLoop();
-                } else {
-                    isWalkingSoundPlaying = false;
-                }
-            };
-        }
-        
-        playLoop();
-    }
-}
-
-function stopWalkingSound() {
-    isWalkingSoundPlaying = false;
-}
-
-function updateWalkingSound() {
-    // Check if player is moving (these variables should be accessible from main.js)
-    if (moveForward || moveBackward || moveLeft || moveRight) {
-        playWalkingSound();
-    } else {
-        // Don't stop immediately, let the MOVEMENT_TIMEOUT handle it
-        lastMovementTime = Date.now() - MOVEMENT_TIMEOUT;
-    }
-}
 // Export functions
 window.initAudio = initAudio;
 window.playSound = playSound;
 window.stopSound = stopSound;
-window.resumeAudio = resumeAudio; 
+window.resumeAudio = resumeAudio;
