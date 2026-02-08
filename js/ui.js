@@ -151,34 +151,11 @@ function createPowerUpLegend() {
         return; // Legend already exists
     }
 
-    // Make sure UI container exists
-    let uiContainer = document.querySelector('.ui-container');
+    // Make sure notification container exists (it's in index.html)
+    let uiContainer = document.getElementById('notificationContainer');
     if (!uiContainer) {
-        // Create the UI container if it doesn't exist (same as in createWeaponInfoDisplay)
-        uiContainer = document.createElement('div');
-        uiContainer.className = 'ui-container';
-        document.body.appendChild(uiContainer);
-
-        // Add basic styles for the UI container if not already added
-        if (!document.querySelector('style[data-for="ui-container"]')) {
-            const containerStyle = document.createElement('style');
-            containerStyle.setAttribute('data-for', 'ui-container');
-            containerStyle.textContent = `
-                .ui-container {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    pointer-events: none;
-                    z-index: 100;
-                }
-                .ui-container > * {
-                    pointer-events: auto;
-                }
-            `;
-            document.head.appendChild(containerStyle);
-        }
+        // Fallback for different context if needed
+        uiContainer = document.body;
     }
 
     // Create legend container
@@ -216,40 +193,6 @@ function createPowerUpLegend() {
     // Add to UI container
     uiContainer.appendChild(legendContainer);
 
-    // Add styles for legend
-    const style = document.createElement('style');
-    style.textContent = `
-        .power-up-legend {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background-color: rgba(0, 0, 0, 0.6);
-            color: white;
-            border-radius: 5px;
-            padding: 8px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 150;
-        }
-        .legend-title {
-            font-weight: bold;
-            margin-bottom: 5px;
-            text-align: center;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 3px 0;
-        }
-        .color-box {
-            width: 10px;
-            height: 10px;
-            margin-right: 5px;
-            border-radius: 2px;
-        }
-    `;
-    document.head.appendChild(style);
 }
 
 function setupMobileControls() {
@@ -708,69 +651,14 @@ function updateWeaponDisplay() {
 
 // Create the weapon info display
 function createWeaponInfoDisplay() {
-    let uiContainer = document.querySelector('.ui-container');
-
-    // Create the UI container if it doesn't exist
-    if (!uiContainer) {
-        console.log("UI container not found, creating one");
-        uiContainer = document.createElement('div');
-        uiContainer.className = 'ui-container';
-        document.body.appendChild(uiContainer);
-
-        // Add basic styles for the UI container
-        const containerStyle = document.createElement('style');
-        containerStyle.textContent = `
-            .ui-container {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: 100;
-            }
-            .ui-container > * {
-                pointer-events: auto;
-            }
-        `;
-        document.head.appendChild(containerStyle);
-    }
+    let uiContainer = document.getElementById('gameContainer');
+    if (!uiContainer) uiContainer = document.body;
 
     const weaponInfo = document.createElement('div');
     weaponInfo.id = 'weaponInfo';
     weaponInfo.className = 'weapon-info';
     uiContainer.appendChild(weaponInfo);
 
-    // Add CSS styles
-    const style = document.createElement('style');
-    style.textContent = `
-        .weapon-info {
-            position: absolute;
-            bottom: 80px;
-            right: 20px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-family: Arial, sans-serif;
-            border-left: 4px solid #ffff00;
-            pointer-events: none;
-        }
-        .weapon-name {
-            font-weight: bold;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-        .weapon-stats {
-            font-size: 12px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .weapon-stats span {
-            margin-right: 10px;
-        }
-    `;
-    document.head.appendChild(style);
 }
 
 // Function to show notifications
@@ -799,20 +687,6 @@ function showNotification(message, duration = 3000) {
     notification.style.textAlign = 'center';
     notification.style.animation = 'fadeInOut 3s forwards';
 
-    // Add animation styles if not already present
-    if (!document.getElementById('notificationStyles')) {
-        const style = document.createElement('style');
-        style.id = 'notificationStyles';
-        style.textContent = `
-            @keyframes fadeInOut {
-                0% { opacity: 0; transform: translateY(-20px); }
-                10% { opacity: 1; transform: translateY(0); }
-                80% { opacity: 1; }
-                100% { opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
-    }
 
     notificationContainer.appendChild(notification);
 
