@@ -12,7 +12,7 @@ let keysPressed = {}; // Global object to store pressed keys
 let joystickActive = false;
 let joystickDirection = new THREE.Vector2();
 let turnJoystickDirection = new THREE.Vector2(); // For the turning joystick
-let joystickKnob, joystick, joystickRect, shootButton; // DOM elements
+let joystickKnob, joystick, joystickRect, shootButton, victoryRestartButton; // DOM elements
 // turnJoystickElement, turnJoystickKnobElement, turnJoystickRect are handled in ui.js
 
 // Power-up related global variables
@@ -280,6 +280,7 @@ function init() {
         console.log("DRAW_MAZE is false. Skipping minimap setup. Using simple plane.");
     }
     setupMobileControls(); // This will also fetch joystick, joystickKnob, shootButton DOM elements
+    victoryRestartButton = document.getElementById('victoryRestartButton');
     setupFullscreenControls(); // Add call to setup fullscreen button
 
     // Initialize weapon display
@@ -323,10 +324,14 @@ function init() {
     // Desktop click to shoot (mobile uses touchstart on button)
     // This listener should only fire if pointer is locked or if it's not on a UI element.
     document.addEventListener('mousedown', (event) => { // Changed to mousedown for better FPS feel
+        // Don't shoot if game is over
+        if (isGameOver) return;
+
         // Allow clicks on UI elements if pointer is not locked
         if (!(document.pointerLockElement || document.mozPointerLockElement || document.webkitPointerLockElement)) {
             if ((joystick && joystick.contains(event.target)) ||
-                (shootButton && shootButton.contains(event.target))) {
+                (shootButton && shootButton.contains(event.target)) ||
+                (victoryRestartButton && victoryRestartButton.contains(event.target))) {
                 return; // Don't shoot if clicking on joystick/shoot button when not locked
             }
             const gameOverScreen = document.getElementById('gameOverScreen');

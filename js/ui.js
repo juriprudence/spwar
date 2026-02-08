@@ -378,6 +378,12 @@ function gameOver() {
     if (isGameOver || (gameOverScreen && gameOverScreen.style.display === 'flex')) return;
 
     isGameOver = true;
+
+    // Unlock pointer on game over
+    if (document.exitPointerLock) {
+        document.exitPointerLock();
+    }
+
     const restartButton = document.getElementById('restartButton');
     const statusDiv = document.getElementById('gameOverStatus');
 
@@ -410,6 +416,12 @@ function showVictory() {
     if (isGameOver || (victoryScreen && victoryScreen.style.display === 'flex')) return;
 
     isGameOver = true;
+
+    // Unlock pointer on victory
+    if (document.exitPointerLock) {
+        document.exitPointerLock();
+    }
+
     const restartButton = document.getElementById('victoryRestartButton');
     const statusDiv = document.getElementById('victoryStatus');
 
