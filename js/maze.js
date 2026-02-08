@@ -28,7 +28,7 @@ function generateMaze() {
         for (let j = 5; j < actualGridSize - 5; j += 10) {
             // Create rooms
             createRoom(i, j, Math.min(8, actualGridSize - i - 2), Math.min(8, actualGridSize - j - 2));
-            
+
             // Create corridors between rooms
             if (j + 10 < actualGridSize - 5) {
                 createHorizontalCorridor(i + 4, j + 8, 4); // Horizontal corridor
@@ -43,11 +43,17 @@ function generateMaze() {
     const centerIdx = Math.floor(actualGridSize / 2);
     clearSpawnArea(centerIdx, centerIdx, 3); // Clear center spawn area
 
+    // Clear additional spawn areas for multiplayer spread
+    clearSpawnArea(5, 5, 3); // Top-left area
+    clearSpawnArea(actualGridSize - 6, 5, 3); // Top-right area
+    clearSpawnArea(5, actualGridSize - 6, 3); // Bottom-left area
+    clearSpawnArea(actualGridSize - 6, actualGridSize - 6, 3); // Bottom-right area
+
     // Add some random paths through the maze
     addRandomPaths(20); // Add 20 random paths
 
     console.log(`generateMaze: Large maze generated. Size: ${actualGridSize}x${actualGridSize}`);
-    
+
     // Create the walls
     createMazeWalls();
 }
@@ -103,14 +109,14 @@ function addRandomPaths(count) {
     for (let n = 0; n < count; n++) {
         let i = 2 + Math.floor(Math.random() * (maze.length - 4));
         let j = 2 + Math.floor(Math.random() * (maze.length - 4));
-        
+
         // Create a random path
         for (let steps = 0; steps < 50; steps++) {
             if (i > 1 && i < maze.length - 2 && j > 1 && j < maze.length - 2) {
                 maze[i][j] = 0;
                 // Randomly move in one direction
                 const direction = Math.floor(Math.random() * 4);
-                switch(direction) {
+                switch (direction) {
                     case 0: i += 1; break;
                     case 1: i -= 1; break;
                     case 2: j += 1; break;
@@ -143,7 +149,7 @@ function createMazeWalls() {
         map: wallTexture,
         color: 0xffffff
     });
-    
+
     const actualGridSize = maze.length;
 
     for (let i = 0; i < actualGridSize; i++) {
@@ -151,18 +157,18 @@ function createMazeWalls() {
             if (maze[i][j] === 1) { // If it's a wall in our grid
                 // Fixed height for all walls to ensure consistency
                 const wallHeight = 3;
-                
+
                 // Create wall geometry with fixed height
                 const wallGeometry = new THREE.BoxGeometry(2, wallHeight, 2);
-                
+
                 const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-                
+
                 wall.position.set(
                     i * 2 - actualGridSize + 1,
                     wallHeight / 2,
                     j * 2 - actualGridSize + 1
                 );
-                
+
                 wall.castShadow = true;
                 wall.receiveShadow = true;
                 scene.add(wall);

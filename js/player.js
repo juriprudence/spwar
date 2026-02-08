@@ -233,25 +233,26 @@ function setLocalPlayerInitialPosition() {
 
     if (typeof localPlayerID !== 'undefined' && localPlayerID !== null) { // localPlayerID is global from multiplayer.js
         if (localPlayerID === 1) {
-            // Player 1 (host or first player) spawns at the absolute center
-            startX = gridToWorld(centerGridIdx);
-            startZ = gridToWorld(centerGridIdx);
+            // Player 1 spawns in the top-left area
+            startX = gridToWorld(5);
+            startZ = gridToWorld(5);
         } else if (localPlayerID === 2) {
-            // Player 2 spawns at a predefined offset, e.g., world X = +4
-            // This corresponds to grid index centerGridIdx + 2
-            startX = gridToWorld(centerGridIdx + 2);
-            startZ = gridToWorld(centerGridIdx); // Same Z as center
+            // Player 2 spawns in the bottom-right area
+            startX = gridToWorld(actualGridSize - 6);
+            startZ = gridToWorld(actualGridSize - 6);
         } else if (localPlayerID === 3) {
-            // Player 3 spawns at another offset, e.g., world X = -4
-            startX = gridToWorld(centerGridIdx - 2);
-            startZ = gridToWorld(centerGridIdx);
+            // Player 3 spawns in the top-right area
+            startX = gridToWorld(actualGridSize - 6);
+            startZ = gridToWorld(5);
         } else if (localPlayerID === 4) {
-            // Player 4 spawns at, e.g., world Z = +4
+            // Player 4 spawns in the bottom-left area
+            startX = gridToWorld(5);
+            startZ = gridToWorld(actualGridSize - 6);
+        } else if (localPlayerID === 0 || localPlayerID > 4) {
+            // Player 0 (sometimes assigned) or higher IDs spawn in the center
             startX = gridToWorld(centerGridIdx);
-            startZ = gridToWorld(centerGridIdx + 2);
+            startZ = gridToWorld(centerGridIdx);
         }
-        // Add more specific spawn points if more than 4 players are expected
-        // or implement a more dynamic spawn point selection from a list of cleared areas.
     } else {
         console.warn("setLocalPlayerInitialPosition: localPlayerID not defined, defaulting to center spawn.");
     }

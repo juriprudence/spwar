@@ -466,7 +466,9 @@ function resetGameLocally() {
     if (healthFill) healthFill.style.width = '100%';
 
     // Reset position
-    if (player) {
+    if (typeof setLocalPlayerInitialPosition === 'function') {
+        setLocalPlayerInitialPosition();
+    } else if (player) {
         const actualGridSizeForReset = 2 * MAZE_SIZE + 1;
         const startX = 1 * 2 - actualGridSizeForReset + 1;
         const startZ = 1 * 2 - actualGridSizeForReset + 1;
