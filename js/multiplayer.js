@@ -92,20 +92,21 @@ function initializeMultiplayer() {
 
     // Add error handler
     photon.onError = function (errorCode, errorMsg) {
-        console.error("Photon Error:", errorCode, errorMsg);
+        console.error("Photon onError Callback - Code:", errorCode, "Message:", errorMsg);
+        alert("Photon Error: " + errorMsg + " (Code: " + errorCode + ")");
     };
 
     // Connect to Name Server first
     console.log("Attempting to connect to Name Server...");
     try {
         photon.connectToNameServer();
-        console.log("Name Server connection request sent");
+        console.log("Name Server connection request sent. Current state:", photon.state);
     } catch (error) {
-        console.error("Error connecting to Name Server:", error);
+        console.error("Error connecting to Name Server (exception):", error);
     }
 
-    // Setup broadcast interval
-    setInterval(broadcastPlayerState, 100);
+    // Setup broadcast interval - increased for debugging
+    setInterval(broadcastPlayerState, 500);
 
     // Add connection health check
     setInterval(checkConnection, 5000);
@@ -156,17 +157,18 @@ function onStateChange(state) {
 
         case Photon.LoadBalancing.LoadBalancingClient.State.Error:
             console.error("Connection error detected. Current state details:", photon.state);
+            console.error("Connection error code:", photon.errorCode, "message:", photon.errorMsg);
             setTimeout(() => {
                 if (!photon.isConnectedToMaster()) {
                     console.log("Attempting to reconnect to Name Server...");
                     try {
                         photon.connectToNameServer();
-                        console.log("Name Server reconnection request sent from checkConnection");
+                        console.log("Name Server reconnection request sent from onStateChange Error");
                     } catch (error) {
-                        console.error("Error during checkConnection reconnection attempt:", error);
+                        console.error("Error during onStateChange reconnection attempt:", error);
                     }
                 }
-            }, 3000);
+            }, 5000);
             break;
     }
 }
