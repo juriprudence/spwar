@@ -372,11 +372,17 @@ function onPlayerLeave(actor) {
         // Also remove from restart ready list
         delete remotePlayersReadyToRestart[playerID];
 
+        console.log(`onPlayerLeave: Player ${playerID} left. LocalPlayerID: ${localPlayerID}. Actor details:`, actor);
+
         console.log(`onPlayerLeave: Removed player ${playerID} from otherPlayers. Managing enemy spawning.`);
         manageEnemySpawningBasedOnRemotePlayers();
 
         // Update waiting status
         updateWaitingStatus();
+
+        // Check if all remaining players are ready to restart
+        // (This handles the case where the player we were waiting for left)
+        checkAllPlayersReady();
     }
 }
 
@@ -479,12 +485,24 @@ function onEvent(code, content, actorNr) {
                 const victimID = content.victimActorNr;
                 console.log(`onEvent: Received event 4 (player_hit). Victim: ${victimID}, Event sent by: ${actorNr}`);
                 if (victimID === localPlayerID) {
+                    // Check if local player is already dead to prevent health going negative or multiple death triggers
+                    if (isPlayerDead) {
+                        console.log(`onEvent: Local player is already dead, ignoring hit.`);
+                        return;
+                    }
+
                     // This client's local player was hit
                     playerHealth -= BULLET_DAMAGE; // BULLET_DAMAGE from config.js
                     console.log(`onEvent: Local player (ID: ${localPlayerID}) hit. New health: ${playerHealth}`);
-                    if (playerHealth <= 0) { console.log("Local player died."); isPlayerDead = true; if (typeof gameOver === 'function') { gameOver(); } }
+                    if (playerHealth <= 0) {
+                        playerHealth = 0; // Clamp health to 0
+                        console.log("Local player died.");
+                        isPlayerDead = true;
+                        if (typeof gameOver === 'function') { gameOver(); }
+                    }
                     // Update local health UI immediately
-                    document.getElementById('healthFill').style.width = Math.max(0, playerHealth) + '%';
+                    const healthFill = document.getElementById('healthFill');
+                    if (healthFill) healthFill.style.width = Math.max(0, playerHealth) + '%';
 
                 } else if (otherPlayers[victimID]) {
                     // A remote player was hit. Their client will manage their actual health.

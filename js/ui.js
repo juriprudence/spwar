@@ -400,6 +400,10 @@ function gameOver() {
         const newRestartButton = restartButton.cloneNode(true);
         restartButton.parentNode.replaceChild(newRestartButton, restartButton);
 
+        // Reset button state if it was hidden/disabled from a previous attempt
+        newRestartButton.style.opacity = '1.0';
+        newRestartButton.style.pointerEvents = 'auto';
+
         newRestartButton.addEventListener('click', function () {
             if (typeof sendRestartReady === 'function') {
                 sendRestartReady();
@@ -431,6 +435,10 @@ function showVictory() {
     if (restartButton) {
         const newRestartButton = restartButton.cloneNode(true);
         restartButton.parentNode.replaceChild(newRestartButton, restartButton);
+
+        // Reset button state if it was hidden/disabled from a previous attempt
+        newRestartButton.style.opacity = '1.0';
+        newRestartButton.style.pointerEvents = 'auto';
 
         newRestartButton.addEventListener('click', function () {
             if (typeof sendRestartReady === 'function') {
