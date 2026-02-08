@@ -288,6 +288,43 @@
             }
         }
 
+        /* Power-Up Legend Styles */
+        .power-up-legend {
+            position: absolute;
+            top: 50px;
+            /* Below health bar */
+            left: 20px;
+            background: var(--bg-ui);
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 11px;
+            z-index: 500;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: var(--accent);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+
+        .color-box {
+            width: 8px;
+            height: 8px;
+            margin-right: 6px;
+            border-radius: 2px;
+        }
+
         /* Responsive Landscape Adjustments */
         @media (orientation: landscape) and (max-height: 500px) {
             .joystick-container {
@@ -356,67 +393,85 @@
                 font-size: 12px;
                 min-width: 120px;
             }
+
+            .power-up-legend {
+                top: 35px;
+                left: 10px;
+                font-size: 10px;
+            }
         }
 
         /* Narrow Screen Adjustments (Portrait or small width) */
         @media (max-width: 400px) {
             .joystick-container {
-                width: 70px;
-                height: 70px;
-                bottom: 20px;
+                width: 65px;
+                height: 65px;
+                bottom: 15px;
             }
 
             .joystick-knob {
-                width: 34px;
-                height: 34px;
-                top: 18px;
-                left: 18px;
+                width: 30px;
+                height: 30px;
+                top: 17px;
+                left: 17px;
             }
 
             #joystick {
-                left: 15px;
+                left: 10px;
             }
 
             #turnJoystick {
-                right: 95px;
-                bottom: 20px;
+                right: 85px;
+                bottom: 15px;
             }
 
             #shootButton {
-                width: 60px;
-                height: 60px;
-                bottom: 25px;
-                right: 15px;
-                font-size: 14px;
+                width: 55px;
+                height: 55px;
+                bottom: 20px;
+                right: 10px;
+                font-size: 12px;
             }
 
             #weaponChangeButton {
                 width: 35px;
                 height: 35px;
-                bottom: 95px;
-                right: 15px;
+                bottom: 85px;
+                right: 10px;
                 font-size: 16px;
             }
 
             #healthBar {
-                width: 140px;
-                left: 15px;
-                top: 15px;
-                height: 20px;
+                width: 130px;
+                left: 10px;
+                top: 10px;
+                height: 18px;
             }
 
             #miniMap {
-                width: 80px;
-                height: 80px;
-                top: 15px;
-                right: 15px;
+                width: 75px;
+                height: 75px;
+                top: 10px;
+                right: 10px;
             }
 
             #fullscreenButton {
-                left: 170px;
-                top: 15px;
+                left: 150px;
+                top: 10px;
                 padding: 4px 8px;
+                font-size: 9px;
+            }
+
+            .power-up-legend {
+                display: none;
+                /* Hide legend on very small screens to save space */
+            }
+
+            #playerList {
                 font-size: 10px;
+                min-width: 90px;
+                padding: 4px;
+                top: 100px;
             }
         }
     </style>
@@ -432,7 +487,7 @@
             <div id="healthFill"></div>
         </div>
         <div id="miniMap"></div>
-        <button id="fullscreenButton">FULLSCREEN</button>
+        <button id="fullscreenButton">&#x26F6; FULLSCREEN</button>
 
         <div id="playerList">
             <div class="playerListHeader">Players Online</div>
